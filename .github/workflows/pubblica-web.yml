@@ -23,6 +23,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
+          # Stessa versione usata in sviluppo: cos√¨ analisi e test danno lo stesso risultato.
+          flutter-version: '3.44.4'
           channel: stable
           cache: true
       - run: flutter pub get
