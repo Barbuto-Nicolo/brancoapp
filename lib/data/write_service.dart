@@ -591,6 +591,17 @@ List<int> pianificaEliminazioneQuota({required String tab, required List<Riga> v
   return out;
 }
 
+/// Parte PURA: righe A1 del tab "Quote" riferite al lupetto [nome] (quote extra).
+List<int> pianificaEliminazioneQuoteLupetto({required String tab, required List<Riga> valori, required String nome}) {
+  if (!valori.any((r) => r.any((c) => !_vuota(c)))) return const [];
+  final t = _apriQuote(tab, valori);
+  final chiave = normalizeName(nome);
+  return [
+    for (var i = 0; i < t.rows.length; i++)
+      if (normalizeName(cellText(cellaAt(t.rows[i], t.cL)) ?? '') == chiave) t.rigaA1(i),
+  ];
+}
+
 /// Interfaccia usata dalla UI (sostituibile nei test).
 abstract class ScritturaService {
   Future<void> scriviCampi({
@@ -800,7 +811,10 @@ class SheetsWriteService implements ScritturaService {
   }, secondi: 60);
 
   @override
-  Future<EsitoEliminazione> eliminaLupetto(Map<String, String> nomiPerTab) => _rete(() async {
+  Future<EsitoEliminazione> eliminaLupetto(Map<String, String> tuttiITab) => _rete(() async {
+    // Il tab "Quote" ha una struttura diversa (più righe per lupetto): si tratta a parte.
+    final nomeQuote = tuttiITab[_p.tabQuote];
+    final nomiPerTab = {...tuttiITab}..remove(_p.tabQuote);
     // 1) Si legge e si pianifica TUTTO: nome ambiguo o struttura strana fermano l'operazione.
     final piani = <String, PianoEliminazione>{};
     final saltati = <String, String>{};
@@ -815,7 +829,7 @@ class SheetsWriteService implements ScritturaService {
         saltati[e.key] = x.dettaglio;
       }
     }
-    if (piani.isEmpty) throw LupettoNonTrovatoException(nomiPerTab.keys.first);
+    if (piani.isEmpty && nomeQuote == null) throw LupettoNonTrovatoException(nomiPerTab.keys.first);
 
     // 2) Eliminazione, un tab alla volta. Subito prima di ogni eliminazione si
     // rilegge la cella del nome: se la riga si è spostata (un altro capo ha
@@ -832,6 +846,34 @@ class SheetsWriteService implements ScritturaService {
       }
       await client.eliminaRiga(await client.sheetId(tab), e.value.indiceRiga0);
       eliminati.add(tab);
+    }
+
+    // 3) Righe delle quote extra: dal basso verso l'alto, ognuna riletta prima di eliminarla.
+    if (nomeQuote != null) {
+      try {
+        final righe = pianificaEliminazioneQuoteLupetto(
+          tab: _p.tabQuote,
+          valori: await client.leggiTab(_p.tabQuote),
+          nome: nomeQuote,
+        );
+        if (righe.isNotEmpty) {
+          final id = await client.sheetId(_p.tabQuote);
+          var fatte = 0;
+          for (final r in righe.reversed) {
+            final cella = await client.leggiRange('${SheetsClient.quotaTab(_p.tabQuote)}!C$r');
+            final letto = (cella == null || cella.isEmpty) ? null : cellText(cella.first);
+            if (letto == null || normalizeName(letto) != normalizeName(nomeQuote)) continue;
+            await client.eliminaRiga(id, r - 1);
+            fatte++;
+          }
+          if (fatte > 0) eliminati.add(_p.tabQuote);
+          if (fatte < righe.length) saltati[_p.tabQuote] = 'alcune righe sono cambiate nel frattempo';
+        }
+      } on StrutturaException catch (x) {
+        saltati[_p.tabQuote] = x.dettaglio;
+      } on SheetsException catch (x) {
+        if (x.statusCode != 400) rethrow; // 400 = il tab non esiste: niente da togliere
+      }
     }
     return EsitoEliminazione(eliminati, saltati);
   }, secondi: 60);

@@ -603,7 +603,7 @@ void mainEliminazione() {
       await t.tap(find.text('Elimina lupetto'));
       await t.pumpAndSettle();
       expect(find.text('Eliminare Mario Rossi?'), findsOneWidget);
-      expect(find.textContaining('Le spese nel Bilancio non cambiano'), findsOneWidget);
+      expect(find.textContaining('Le voci nel Bilancio non cambiano'), findsOneWidget);
       expect(w.eliminati, isEmpty); // finché non si conferma, nulla
 
       await t.tap(find.widgetWithText(FilledButton, 'Elimina'));

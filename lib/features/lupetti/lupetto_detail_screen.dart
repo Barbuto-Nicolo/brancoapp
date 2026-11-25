@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/parsers/cell_utils.dart' show normalizeName;
 import '../../models/models.dart';
 import '../common/format.dart';
 import '../common/modifica_campi_page.dart';
@@ -72,7 +73,7 @@ class LupettoDetailScreen extends ConsumerWidget {
     );
   }
 
-  /// Elimina le righe del lupetto da tutti i tab in cui compare (non il Bilancio).
+  /// Elimina le righe del lupetto da tutti i tab in cui compare, quote extra comprese (non il Bilancio).
   Future<void> _elimina(BuildContext context, WidgetRef ref, Lupetto l) async {
     if (!await controllaOnline(context, ref) || !context.mounted) return;
     final p = ref.read(profiloProvider);
@@ -82,6 +83,12 @@ class LupettoDetailScreen extends ConsumerWidget {
       if (l.censimento != null) p.tabCensimenti: l.censimento!.nome,
       if (l.prede != null) p.tabPrede: l.prede!.nome,
     };
+    final righeQuote = [
+      for (final r in ref.read(datiProvider).value?.data.quote.righe ?? const <QuotaExtraRiga>[])
+        if (normalizeName(r.lupetto) == normalizeName(l.nome)) r,
+    ];
+    if (righeQuote.isNotEmpty) nomi[p.tabQuote] = l.nome;
+    final extraPagate = righeQuote.where((r) => r.pagata).length;
     final conferma = await showDialog<bool>(
       context: context,
       builder: (ctx) {
@@ -98,8 +105,16 @@ class LupettoDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 8),
                 for (final t in nomi.keys) Text('• $t', style: const TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 12),
+                if (extraPagate > 0) ...[
+                  Text(
+                    'Ha già pagato $extraPagate ${extraPagate == 1 ? 'quota extra' : 'quote extra'}: '
+                    'l\'incasso resta nel Bilancio.',
+                    style: TextStyle(color: s.error, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 const Text(
-                  'Le spese nel Bilancio non cambiano. Dall\'app non si può annullare: '
+                  'Le voci nel Bilancio non cambiano. Dall\'app non si può annullare: '
                   'nel foglio puoi tornare indietro da File → Cronologia versioni.',
                 ),
               ],
