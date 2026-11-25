@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#17402F">
+  <title>Informativa sulla privacy – BrancoApp</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <style>
+    :root { color-scheme: light dark; --bosco:#17402F; --giallo:#F2B418; --carta:#F1F5EA; --testo:#17261E; }
+    @media (prefers-color-scheme: dark) { :root { --carta:#0F1D16; --testo:#E3EDE2; } }
+    body { margin:0; background:var(--carta); color:var(--testo); font:17px/1.55 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    header { background:var(--bosco); color:#fff; padding:28px 20px; }
+    header a { color:var(--giallo); }
+    main { max-width:42rem; margin:0 auto; padding:8px 20px 56px; }
+    h1 { margin:0 0 4px; font-size:1.6rem; letter-spacing:-0.02em; }
+    h2 { margin:2rem 0 .4rem; font-size:1.15rem; }
+    a { color:#2E7D4F; } @media (prefers-color-scheme: dark) { a { color:#86D5A5; } }
+    header p { margin:0; opacity:.85; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Informativa sulla privacy</h1>
+    <p>BrancoApp · <a href="info.html">Cos'è BrancoApp</a> · aggiornata il 25 novembre 2026</p>
+  </header>
+  <main>
+    <h2>Chi siamo</h2>
+    <p>BrancoApp è un'app per i capi di un branco di lupetti scout. Permette di consultare e aggiornare un foglio Google
+       che il branco già usa. Non è un servizio pubblico: la usano solo i capi a cui il foglio è stato condiviso.</p>
+
+    <h2>Quali dati usa l'app</h2>
+    <ul>
+      <li><strong>Il tuo account Google.</strong> Quando accedi, Google ci dà un permesso temporaneo (un "token") per leggere
+          e modificare Google Sheets. Chiediamo solo questo permesso (<code>https://www.googleapis.com/auth/spreadsheets</code>).</li>
+      <li><strong>I contenuti del foglio.</strong> L'app legge e scrive solo il foglio del branco a cui sei stato invitato:
+          elenchi dei lupetti, sestiglie, quote e bilancio. Possono contenere dati personali di minori e dei loro genitori
+          (nomi, recapiti, codice fiscale) inseriti dai capi stessi.</li>
+    </ul>
+    <p>L'app non legge altri file del tuo Drive e non accede alla tua posta, ai tuoi contatti o al tuo calendario.</p>
+
+    <h2>Dove vanno i dati</h2>
+    <p>L'app non ha un server suo. I dati passano direttamente tra il tuo dispositivo e Google. Non li riceviamo, non li
+       copiamo altrove, non li vendiamo, non li condividiamo con terzi e non usiamo pubblicità né strumenti di analisi.</p>
+
+    <h2>Cosa resta sul tuo dispositivo</h2>
+    <ul>
+      <li>L'ultima lettura del foglio viene salvata sul telefono o nel browser, per poterla consultare anche senza rete.
+          Si cancella toccando <em>Esci</em> nell'app.</li>
+      <li>Nella versione web il permesso di Google resta solo in memoria e si perde chiudendo la pagina.</li>
+    </ul>
+
+    <h2>Uso dei dati ricevuti da Google</h2>
+    <p>L'uso e il trasferimento a qualsiasi altra app delle informazioni ricevute dalle API di Google rispetterà la
+       <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
+       compresi i requisiti di uso limitato (<em>Limited Use</em>). I dati di Google vengono usati solo per mostrarti e
+       aggiornare il foglio, e non per pubblicità o per addestrare modelli.</p>
+
+    <h2>I tuoi diritti e come revocare l'accesso</h2>
+    <p>Puoi revocare in qualsiasi momento il permesso dato all'app da
+       <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>. Per correggere o cancellare
+       dati personali presenti nel foglio, rivolgiti ai capi che lo gestiscono: sono loro i responsabili di quei dati.</p>
+
+    <h2>Contatti</h2>
+    <p>Per domande su questa informativa apri una segnalazione sul
+       <a href="https://github.com/Barbuto-Nicolo/brancoapp/issues">repository del progetto</a>.</p>
+  </main>
+</body>
+</html>

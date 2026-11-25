@@ -98,6 +98,9 @@ class AppConfig {
   static const String googleBrowserClientId =
       '346696487405-clnn71qpdue38d5d4q5fc5eef700nslc.apps.googleusercontent.com';
 
+  /// Informativa sulla privacy (pagina statica pubblicata insieme alla versione web).
+  static const String urlPrivacy = 'https://barbuto-nicolo.github.io/brancoapp/privacy.html';
+
   /// Alias opzionali per nomi che non coincidono tra i tab.
   /// Chiave e valore sono nomi NORMALIZZATI (minuscolo, senza spazi né "_"),
   /// es. {'diego': 'diegociccolini'}. Vuota di default: i casi dubbi

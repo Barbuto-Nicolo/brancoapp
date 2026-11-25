@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#17402F">
+  <meta name="description" content="BrancoApp: l'app per i capi del branco, per consultare e aggiornare il foglio Google di lupetti, sestiglie, quote e bilancio.">
+  <title>BrancoApp – l'app per i capi del branco</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <style>
+    :root { color-scheme: light dark; --bosco:#17402F; --giallo:#F2B418; --carta:#F1F5EA; --testo:#17261E; }
+    @media (prefers-color-scheme: dark) { :root { --carta:#0F1D16; --testo:#E3EDE2; } }
+    body { margin:0; background:var(--carta); color:var(--testo); font:17px/1.55 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    header { background:var(--bosco); color:#fff; padding:36px 20px; text-align:center; }
+    header img { width:84px; height:84px; border-radius:20px; }
+    header h1 { margin:12px 0 4px; font-size:2rem; letter-spacing:-0.03em; }
+    header p { margin:0; opacity:.85; }
+    main { max-width:42rem; margin:0 auto; padding:8px 20px 56px; }
+    h2 { margin:2rem 0 .4rem; font-size:1.2rem; }
+    a { color:#2E7D4F; } @media (prefers-color-scheme: dark) { a { color:#86D5A5; } }
+    .apri { display:inline-block; margin:8px 0; padding:14px 22px; border-radius:14px; background:var(--giallo); color:#2A2000; font-weight:700; text-decoration:none; }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="icons/Icon-192.png" alt="Logo di BrancoApp: testa di lupo">
+    <h1>BrancoApp</h1>
+    <p>L'app per i capi del branco</p>
+  </header>
+  <main>
+    <p>BrancoApp permette ai capi di un branco di lupetti scout di consultare e aggiornare dal telefono il foglio Google
+       che il branco già usa, senza dover aprire il foglio ogni volta.</p>
+    <p><a class="apri" href="./">Apri l'app</a></p>
+
+    <h2>Cosa fa</h2>
+    <ul>
+      <li><strong>Lupetti:</strong> elenco, ricerca, schede con recapiti dei genitori.</li>
+      <li><strong>Sestiglie:</strong> composizione per anno e spostamenti.</li>
+      <li><strong>Censimenti e quote:</strong> chi ha pagato e chi no.</li>
+      <li><strong>Prede e specialità:</strong> assegnazione e avanzamento.</li>
+      <li><strong>Bilancio:</strong> movimenti, saldo e promemoria dei rimborsi ai capi.</li>
+    </ul>
+
+    <h2>Come funziona l'accesso</h2>
+    <p>Si accede con il proprio account Google. L'app mostra solo i dati del foglio condiviso con quell'account:
+       senza accesso al foglio non si vede nulla. L'app non ha un server suo e non conserva i dati altrove.</p>
+
+    <h2>Privacy</h2>
+    <p>Leggi l'<a href="privacy.html">informativa sulla privacy</a> per sapere quali dati usa l'app e come revocare l'accesso.</p>
+  </main>
+</body>
+</html>
