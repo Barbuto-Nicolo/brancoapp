@@ -75,7 +75,7 @@ void main() {
       final mock = MockClient((req) async {
         richieste.add(req);
         final p = AppConfig.profili['copia']!;
-        final tab = [...p.tuttiITab, p.tabCapi]; // il tab "Capi" è opzionale ma richiesto
+        final tab = [...p.tuttiITab, p.tabCapi, p.tabQuote]; // "Capi" e "Quote" sono opzionali ma richiesti
         return http.Response(
           jsonEncode({
             'valueRanges': [
@@ -107,7 +107,7 @@ void main() {
       expect(richieste.length, 1);
       final u = richieste.single.url;
       expect(u.path, endsWith('/values:batchGet'));
-      expect(u.queryParametersAll['ranges']!.length, 6);
+      expect(u.queryParametersAll['ranges']!.length, 7);
       expect(u.queryParameters['valueRenderOption'], 'UNFORMATTED_VALUE');
       expect(richieste.single.headers['Authorization'], 'Bearer token-finto');
       expect(out['Sestiglie']!.first, ['Lupetto/a', 2027]);
@@ -115,7 +115,7 @@ void main() {
       expect(out['Capi']!.last, ['Akela']);
     });
 
-    test('tab "Capi" inesistente: si ripete la chiamata senza di lui', () async {
+    test('tab opzionali inesistenti: si ripete la chiamata togliendoli', () async {
       final richieste = <http.Request>[];
       final p = AppConfig.profili['copia']!;
       final client = SheetsClient(
@@ -124,12 +124,12 @@ void main() {
         httpClient: MockClient((req) async {
           richieste.add(req);
           final n = req.url.queryParametersAll['ranges']!.length;
-          if (n == 6) return http.Response('{"error":{"message":"Unable to parse range: Capi"}}', 400);
+          if (n > 5) return http.Response('{"error":{"message":"Unable to parse range: Capi"}}', 400);
           return http.Response(jsonEncode({'valueRanges': [for (var i = 0; i < n; i++) <String, dynamic>{}]}), 200);
         }),
       );
       final out = await client.batchGet();
-      expect(richieste.length, 2);
+      expect(richieste.length, 4); // 7, 6 (senza Quote), 6 (senza Capi), 5
       expect(out.containsKey('Capi'), isFalse);
       expect(out.length, 5);
     });

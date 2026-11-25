@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'data/auth/auth_service.dart';
 import 'data/branco_repository.dart';
+import 'data/sheets_client.dart' show SheetsException;
 import 'features/auth/login_screen.dart';
 import 'features/common/scout_art.dart';
 import 'features/dati/dati_provider.dart';
@@ -39,9 +40,7 @@ class _LupettiAppState extends ConsumerState<LupettiApp> {
   void _avviaTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(intervalloAggiornamento, (_) {
-      ref.read(datiProvider.notifier).aggiornaSeVecchi(
-            soglia: intervalloAggiornamento - const Duration(seconds: 2),
-          );
+      ref.read(datiProvider.notifier).aggiornaSeVecchi(soglia: intervalloAggiornamento - const Duration(seconds: 2));
     });
   }
 
@@ -80,15 +79,46 @@ class _Gate extends ConsumerWidget {
       data: (_) => const HomeShell(),
       loading: () => const Scaffold(
         body: Center(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            LogoLupo(size: 72),
-            SizedBox(height: 20),
-            CircularProgressIndicator(),
-          ]),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [LogoLupo(size: 72), SizedBox(height: 20), CircularProgressIndicator()],
+          ),
         ),
       ),
       error: (e, _) {
         if (e is NonAutenticatoException) return const LoginScreen();
+        if (e is SheetsException && e.accessoNegato) {
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const LogoLupo(size: 84),
+                    const SizedBox(height: 20),
+                    Text('Nessun accesso al foglio', style: Theme.of(context).textTheme.headlineSmall),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Questo account Google non può aprire il foglio del branco. '
+                      'Chiedi a un capo di condividerlo con la tua email, poi riprova.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton(onPressed: () => ref.invalidate(datiProvider), child: const Text('Riprova')),
+                    TextButton(
+                      onPressed: () async {
+                        await ref.read(repositoryProvider).esci();
+                        ref.invalidate(datiProvider);
+                      },
+                      child: const Text('Usa un altro account'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
         final testo = e is RetePersaException
             ? 'Nessuna connessione e nessun dato salvato. Collegati a internet per il primo caricamento.'
             : 'Impossibile leggere il foglio: $e';
@@ -96,14 +126,14 @@ class _Gate extends ConsumerWidget {
           body: Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Text(testo, textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => ref.invalidate(datiProvider),
-                  child: const Text('Riprova'),
-                ),
-              ]),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(testo, textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                  FilledButton(onPressed: () => ref.invalidate(datiProvider), child: const Text('Riprova')),
+                ],
+              ),
             ),
           ),
         );

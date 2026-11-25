@@ -43,27 +43,32 @@ class LupettoDetailScreen extends ConsumerWidget {
             itemBuilder: (ctx) => [
               PopupMenuItem(
                 value: 'elimina',
-                child: Row(children: [
-                  Icon(Icons.delete_outline, color: Theme.of(ctx).colorScheme.error),
-                  const SizedBox(width: 12),
-                  Text('Elimina lupetto', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
-                ]),
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_outline, color: Theme.of(ctx).colorScheme.error),
+                    const SizedBox(width: 12),
+                    Text('Elimina lupetto', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+                  ],
+                ),
               ),
             ],
           ),
         ],
       ),
-      body: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-        _Testata(l, annoSest),
-        _Sezione('Dati anagrafici', l.dati == null ? null : _anagrafica(l.dati!), 'Dati e recapiti'),
-        if (l.dati != null) ...[
-          _genitore(context, 'Madre', l.dati!.madre),
-          _genitore(context, 'Padre', l.dati!.padre),
+      body: ListView(
+        padding: const EdgeInsets.only(bottom: 24),
+        children: [
+          _Testata(l, annoSest),
+          _Sezione('Dati anagrafici', l.dati == null ? null : _anagrafica(l.dati!), 'Dati e recapiti'),
+          if (l.dati != null) ...[
+            _genitore(context, 'Madre', l.dati!.madre),
+            _genitore(context, 'Padre', l.dati!.padre),
+          ],
+          _Sezione('Censimento e quote', l.censimento == null ? null : _quote(l.censimento!), 'Censimenti e quote'),
+          _Sezione('Prede e specialità', l.prede == null ? null : PredeContenuto(l.prede!), 'Prede e specialità'),
+          _Sezione('Sestiglie', l.sestiglie == null ? null : _sestiglie(l.sestiglie!, annoSest), 'Sestiglie'),
         ],
-        _Sezione('Censimento e quote', l.censimento == null ? null : _quote(l.censimento!), 'Censimenti e quote'),
-        _Sezione('Prede e specialità', l.prede == null ? null : PredeContenuto(l.prede!), 'Prede e specialità'),
-        _Sezione('Sestiglie', l.sestiglie == null ? null : _sestiglie(l.sestiglie!, annoSest), 'Sestiglie'),
-      ]),
+      ),
     );
   }
 
@@ -85,14 +90,20 @@ class LupettoDetailScreen extends ConsumerWidget {
           icon: Icon(Icons.warning_amber_rounded, color: s.error, size: 32),
           title: Text('Eliminare ${l.nome}?'),
           content: SingleChildScrollView(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              const Text('La sua riga verrà cancellata dal foglio, in questi tab:'),
-              const SizedBox(height: 8),
-              for (final t in nomi.keys) Text('• $t', style: const TextStyle(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 12),
-              const Text('Le spese nel Bilancio non cambiano. Dall\'app non si può annullare: '
-                  'nel foglio puoi tornare indietro da File → Cronologia versioni.'),
-            ]),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('La sua riga verrà cancellata dal foglio, in questi tab:'),
+                const SizedBox(height: 8),
+                for (final t in nomi.keys) Text('• $t', style: const TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 12),
+                const Text(
+                  'Le spese nel Bilancio non cambiano. Dall\'app non si può annullare: '
+                  'nel foglio puoi tornare indietro da File → Cronologia versioni.',
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),
@@ -106,17 +117,12 @@ class LupettoDetailScreen extends ConsumerWidget {
       },
     );
     if (conferma != true || !context.mounted) return;
-    final ok = await eseguiModifica(
-      context,
-      ref,
-      (_) async {
-        final e = await ref.read(scritturaProvider).eliminaLupetto(nomi);
-        if (e.saltati.isEmpty) return '${l.nome} eliminato dal foglio.';
-        final saltati = e.saltati.entries.map((x) => '${x.key} (${x.value})').join(', ');
-        return '${l.nome} eliminato, ma non in: $saltati.';
-      },
-      conflittoSovrascrivibile: false,
-    );
+    final ok = await eseguiModifica(context, ref, (_) async {
+      final e = await ref.read(scritturaProvider).eliminaLupetto(nomi);
+      if (e.saltati.isEmpty) return '${l.nome} eliminato dal foglio.';
+      final saltati = e.saltati.entries.map((x) => '${x.key} (${x.value})').join(', ');
+      return '${l.nome} eliminato, ma non in: $saltati.';
+    }, conflittoSovrascrivibile: false);
     if (ok && context.mounted) Navigator.pop(context);
   }
 
@@ -138,54 +144,72 @@ class LupettoDetailScreen extends ConsumerWidget {
       t('Telefono', 'Padre', d.padre?.telefono, off: 1, tipo: TipoCampo.numerico, sez: 'Padre'),
       t('Email', 'Padre', d.padre?.email, off: 2, sez: 'Padre'),
     ];
-    await Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => ModificaCampiPage(
-        titolo: d.nome,
-        tab: ref.read(profiloProvider).tabDati,
-        nomeNelTab: d.nome,
-        campi: campi,
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            ModificaCampiPage(titolo: d.nome, tab: ref.read(profiloProvider).tabDati, nomeNelTab: d.nome, campi: campi),
       ),
-    ));
+    );
   }
 
-  Widget _anagrafica(DatiRecapiti d) => Column(children: [
-        CampoRiga('Anno di cammino', d.anno),
-        CampoRiga('Codice censimento', d.codCens),
-        CampoRiga('Nato/a a', d.natoA),
-        CampoRiga('Data di nascita', dataIt(d.dataNascita)),
-        CampoRiga('Codice fiscale', d.codiceFiscale),
-        CampoRiga('Residenza', d.residenza),
-      ]);
+  Widget _anagrafica(DatiRecapiti d) => Column(
+    children: [
+      CampoRiga('Anno di cammino', d.anno),
+      CampoRiga('Codice censimento', d.codCens),
+      CampoRiga('Nato/a a', d.natoA),
+      CampoRiga('Data di nascita', dataIt(d.dataNascita)),
+      CampoRiga('Codice fiscale', d.codiceFiscale),
+      CampoRiga('Residenza', d.residenza),
+    ],
+  );
 
   Widget _genitore(BuildContext context, String ruolo, Genitore? g) {
     if (g == null) return const SizedBox.shrink();
     return _Sezione(
       ruolo,
-      Column(children: [
-        CampoRiga('Nome', g.nome),
-        CampoRiga('Telefono', g.telefono,
+      Column(
+        children: [
+          CampoRiga('Nome', g.nome),
+          CampoRiga(
+            'Telefono',
+            g.telefono,
             icona: Icons.call,
-            onTap: g.telefono == null ? null : () => mostraAzioniTelefono(context, g.nome ?? ruolo, g.telefono!)),
-        CampoRiga('Email', g.email,
-            icona: Icons.mail_outline, onTap: g.email == null ? null : () => scriviMail(context, g.email!)),
-      ]),
+            onTap: g.telefono == null ? null : () => mostraAzioniTelefono(context, g.nome ?? ruolo, g.telefono!),
+          ),
+          CampoRiga(
+            'Email',
+            g.email,
+            icona: Icons.mail_outline,
+            onTap: g.email == null ? null : () => scriviMail(context, g.email!),
+          ),
+        ],
+      ),
       ruolo,
     );
   }
 
-  Widget _quote(Censimento c) => Column(children: [
-        CampoRiga('Dati censimento', c.datiCens),
-        CampoRiga('Scheda sanitaria', c.sanitaria == null ? null : (c.sanitaria! ? 'Consegnata' : 'Non consegnata')),
-        CampoRiga('Censimento', [c.censimento, if (c.dataCensimento != null) dataIt(c.dataCensimento)].whereType<String>().join(' · ')),
-        CampoRiga('Quota SanFra', [c.quotaSanFra, if (c.dataSanFra != null) dataIt(c.dataSanFra)].whereType<String>().join(' · ')),
-        CampoRiga('Quota VdB', [c.quotaVdB, if (c.dataVdB != null) dataIt(c.dataVdB)].whereType<String>().join(' · ')),
-        CampoRiga('Note', c.note),
-      ]);
+  Widget _quote(Censimento c) => Column(
+    children: [
+      CampoRiga('Dati censimento', c.datiCens),
+      CampoRiga('Scheda sanitaria', c.sanitaria == null ? null : (c.sanitaria! ? 'Consegnata' : 'Non consegnata')),
+      CampoRiga(
+        'Censimento',
+        [c.censimento, if (c.dataCensimento != null) dataIt(c.dataCensimento)].whereType<String>().join(' · '),
+      ),
+      CampoRiga(
+        'Quota SanFra',
+        [c.quotaSanFra, if (c.dataSanFra != null) dataIt(c.dataSanFra)].whereType<String>().join(' · '),
+      ),
+      CampoRiga('Quota VdB', [c.quotaVdB, if (c.dataVdB != null) dataIt(c.dataVdB)].whereType<String>().join(' · ')),
+      CampoRiga('Note', c.note),
+    ],
+  );
 
-  Widget _sestiglie(SestigliaRiga s, int? annoDefault) => Column(children: [
-        for (final e in s.perAnno.entries)
-          CampoRiga(e.key == annoDefault ? '${e.key} (attuale)' : '${e.key}', e.value),
-      ]);
+  Widget _sestiglie(SestigliaRiga s, int? annoDefault) => Column(
+    children: [
+      for (final e in s.perAnno.entries) CampoRiga(e.key == annoDefault ? '${e.key} (attuale)' : '${e.key}', e.value),
+    ],
+  );
 }
 
 class _Testata extends StatelessWidget {
@@ -200,26 +224,41 @@ class _Testata extends StatelessWidget {
     final colore = sest == null ? s.primaryContainer : coloreSestiglia(sest);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: Row(children: [
-        AvatarIniziali(l.nome, colore: colore, testo: sest == null ? s.onPrimaryContainer : testoSu(colore), size: 68),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(l.nome, style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 6),
-            Wrap(spacing: 6, runSpacing: 4, children: [
-              if (l.annoNumero != null)
-                Chip(visualDensity: VisualDensity.compact, label: Text('${l.annoNumero}° anno')),
-              if (sest != null)
-                Chip(
-                  visualDensity: VisualDensity.compact,
-                  avatar: CircleAvatar(backgroundColor: colore, radius: 8),
-                  label: Text(sest),
+      child: Row(
+        children: [
+          AvatarIniziali(
+            l.nome,
+            colore: colore,
+            testo: sest == null ? s.onPrimaryContainer : testoSu(colore),
+            size: 68,
+            macchie: sest != null && haMacchie(sest),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l.nome, style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    if (l.annoNumero != null)
+                      Chip(visualDensity: VisualDensity.compact, label: Text('${l.annoNumero}° anno')),
+                    if (sest != null)
+                      Chip(
+                        visualDensity: VisualDensity.compact,
+                        avatar: CircleAvatar(backgroundColor: colore, radius: 8),
+                        label: Text(sest),
+                      ),
+                  ],
                 ),
-            ]),
-          ]),
-        ),
-      ]),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -236,17 +275,23 @@ class _Sezione extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text(titolo, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Theme.of(context).colorScheme.primary)),
-          ),
-          contenuto ??
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                child: Text('Non presente nel tab "$tab" (nome diverso o assente).'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Text(
+                titolo,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Theme.of(context).colorScheme.primary),
               ),
-        ]),
+            ),
+            contenuto ??
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  child: Text('Non presente nel tab "$tab" (nome diverso o assente).'),
+                ),
+          ],
+        ),
       ),
     );
   }

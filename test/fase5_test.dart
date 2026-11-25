@@ -25,32 +25,41 @@ final _p = AppConfig.profili['copia']!;
 List<List<Object?>> _copia(List<List<Object?>> t) => [for (final r in t) List<Object?>.from(r)];
 
 FakeSheets _foglio({List<List<Object?>>? bilancio, Map<String, List<List<Object?>>>? extra}) => FakeSheets({
-      _p.tabDati: _copia(fxDati),
-      _p.tabCensimenti: _copia(fxCensimenti),
-      _p.tabPrede: _copia(fxPrede),
-      _p.tabSestiglie: _copia(fxSestiglie),
-      _p.tabBilancio: _copia(bilancio ?? fxBilancio),
-      ...?extra,
-    });
+  _p.tabDati: _copia(fxDati),
+  _p.tabCensimenti: _copia(fxCensimenti),
+  _p.tabPrede: _copia(fxPrede),
+  _p.tabSestiglie: _copia(fxSestiglie),
+  _p.tabBilancio: _copia(bilancio ?? fxBilancio),
+  ...?extra,
+});
 
 SheetsWriteService _svc(FakeSheets f) => SheetsWriteService(
-      client: SheetsClient(profilo: _p, token: () async => 't', httpClient: f.client),
-      online: () async => true,
-    );
+  client: SheetsClient(profilo: _p, token: () async => 't', httpClient: f.client),
+  online: () async => true,
+);
 
 BrancoData _leggi(FakeSheets f) => BrancoData.daTab(_p, {for (final e in f.tabs.entries) e.key: e.value});
 
 /// Bilancio con le colonne dei rimborsi già presenti.
 List<List<Object?>> _bilancioRimborsi() => [
-      ['Dettagli spese', 'Categoria', 'Costo', 'Data della transazione', 'Pagato da', 'Note', 'Da rimborsare', 'Rimborsata il'],
-      ['Conto iniziale', 'Sede', 235, '', '', 'Contanti'],
-      ['Colori', 'Materiale', -18, s(2026, 11, 3), 'Akela', '', 'sì'],
-      ['Quaderni', 'Attività', -7.5, s(2026, 11, 3), 'Akela', '', 'sì'],
-      ['Corda', 'Materiale', -12, s(2026, 10, 1), 'Bagheera', '', 'sì', s(2026, 10, 20)], // già rimborsata
-      ['Pane', 'Cibo', -6, s(2026, 11, 9), 'Raksha'], // pagata dalla cassa
-      [],
-      ['', '', 191.5], // totale
-    ];
+  [
+    'Dettagli spese',
+    'Categoria',
+    'Costo',
+    'Data della transazione',
+    'Pagato da',
+    'Note',
+    'Da rimborsare',
+    'Rimborsata il',
+  ],
+  ['Conto iniziale', 'Sede', 235, '', '', 'Contanti'],
+  ['Colori', 'Materiale', -18, s(2026, 11, 3), 'Akela', '', 'sì'],
+  ['Quaderni', 'Attività', -7.5, s(2026, 11, 3), 'Akela', '', 'sì'],
+  ['Corda', 'Materiale', -12, s(2026, 10, 1), 'Bagheera', '', 'sì', s(2026, 10, 20)], // già rimborsata
+  ['Pane', 'Cibo', -6, s(2026, 11, 9), 'Raksha'], // pagata dalla cassa
+  [],
+  ['', '', 191.5], // totale
+];
 
 void main() {
   mainEliminazione();
@@ -79,7 +88,17 @@ void main() {
     });
 
     test('parseCapi: con e senza intestazione, senza doppioni', () {
-      expect(parseCapi([['Capo/a'], ['Akela'], ['Bagheera '], [], ['akela'], ['Akela']]), ['Akela', 'Bagheera', 'akela']);
+      expect(
+        parseCapi([
+          ['Capo/a'],
+          ['Akela'],
+          ['Bagheera '],
+          [],
+          ['akela'],
+          ['Akela'],
+        ]),
+        ['Akela', 'Bagheera', 'akela'],
+      );
       expect(parseCapi([]), isEmpty);
     });
   });
@@ -87,15 +106,18 @@ void main() {
   group('rimborsi: scrittura', () {
     test('nuova spesa anticipata su un foglio senza colonne: crea le 2 intestazioni a destra e scrive "sì"', () async {
       final f = _foglio();
-      await _svc(f).aggiungiMovimento(const Movimento(
-        descrizione: 'Cartoncini',
-        importo: -9,
-        categoria: 'Attività',
-        pagatoDa: 'Akela',
-        daRimborsare: true,
-      ));
+      await _svc(f).aggiungiMovimento(
+        const Movimento(
+          descrizione: 'Cartoncini',
+          importo: -9,
+          categoria: 'Attività',
+          pagatoDa: 'Akela',
+          daRimborsare: true,
+        ),
+      );
       final celle = {
-        for (final d in f.scritture.single['data'] as List) (d as Map)['range'] as String: (d['values'] as List).first.first,
+        for (final d in f.scritture.single['data'] as List)
+          (d as Map)['range'] as String: (d['values'] as List).first.first,
       };
       expect(celle["'Bilancio'!G1"], 'Da rimborsare');
       expect(celle["'Bilancio'!H1"], 'Rimborsata il');
@@ -123,7 +145,8 @@ void main() {
       await _svc(f).segnaRimborsati(daFare, DateTime.utc(2026, 11, 24));
 
       final celle = {
-        for (final d in f.scritture.single['data'] as List) (d as Map)['range'] as String: (d['values'] as List).first.first,
+        for (final d in f.scritture.single['data'] as List)
+          (d as Map)['range'] as String: (d['values'] as List).first.first,
       };
       expect(celle.length, 2);
       expect(celle["'Bilancio'!H3"], s(2026, 11, 24)); // Colori
@@ -170,22 +193,26 @@ void main() {
     });
 
     test('capo già presente (anche con maiuscole/spazi diversi): errore, nulla scritto', () async {
-      final f = _foglio(extra: {
-        'Capi': [
-          ['Capo/a'],
-          ['Akela'],
-        ],
-      });
+      final f = _foglio(
+        extra: {
+          'Capi': [
+            ['Capo/a'],
+            ['Akela'],
+          ],
+        },
+      );
       await expectLater(_svc(f).aggiungiCapo(' akela '), throwsA(isA<CapoGiaPresenteException>()));
       expect(f.numeroScritture, 0);
     });
 
     test('tab "Capi" con contenuto ma senza intestazione: non si scrive alla cieca', () async {
-      final f = _foglio(extra: {
-        'Capi': [
-          ['Akela'],
-        ],
-      });
+      final f = _foglio(
+        extra: {
+          'Capi': [
+            ['Akela'],
+          ],
+        },
+      );
       await expectLater(_svc(f).aggiungiCapo('Baloo'), throwsA(isA<StrutturaException>()));
       expect(f.numeroScritture, 0);
     });
@@ -230,12 +257,7 @@ void main() {
         ['Mario Rossi', '4° anno'],
         ['', 'Totale', 1], // riga subito sotto (senza nome): contenuto da non sovrascrivere
       ];
-      final piano = pianificaRigaNuova(
-        tab: 'T',
-        valori: valori,
-        nome: 'Nuovo Lupo',
-        campi: [('Anno', 0, '2° anno')],
-      );
+      final piano = pianificaRigaNuova(tab: 'T', valori: valori, nome: 'Nuovo Lupo', campi: [('Anno', 0, '2° anno')]);
       expect(piano.serveInserimento, isTrue);
       expect(piano.indiceInserimento0, 2); // prima della riga dei totali
       expect(piano.celle.first.range, "'T'!A3");
@@ -257,8 +279,12 @@ void main() {
     });
 
     test('validazione del modulo', () {
-      String? v({String nome = 'Paolo Gialli', int? anno = 2, String sest = 'Neri', List<String> esistenti = const []}) =>
-          validaNuovoLupetto(nome: nome, anno: anno, sestiglia: sest, nomiEsistenti: esistenti);
+      String? v({
+        String nome = 'Paolo Gialli',
+        int? anno = 2,
+        String sest = 'Neri',
+        List<String> esistenti = const [],
+      }) => validaNuovoLupetto(nome: nome, anno: anno, sestiglia: sest, nomiEsistenti: esistenti);
       expect(v(), isNull);
       expect(v(nome: 'Paolo'), contains('nome e cognome'));
       expect(v(anno: null), contains('anno'));
@@ -275,24 +301,34 @@ void main() {
     });
     test('anticipata con capo: ok; su un\'entrata il flag viene ignorato', () {
       final a = costruisciMovimento(
-          descrizione: 'Colori', importo: '5', uscita: true, pagatoDa: 'Akela', daRimborsare: true);
+        descrizione: 'Colori',
+        importo: '5',
+        uscita: true,
+        pagatoDa: 'Akela',
+        daRimborsare: true,
+      );
       expect(a.movimento!.daRimborsare, isTrue);
       final b = costruisciMovimento(
-          descrizione: 'Offerta', importo: '5', uscita: false, pagatoDa: 'Akela', daRimborsare: true);
+        descrizione: 'Offerta',
+        importo: '5',
+        uscita: false,
+        pagatoDa: 'Akela',
+        daRimborsare: true,
+      );
       expect(b.movimento!.daRimborsare, isFalse);
     });
   });
 
   group('stato del collegamento', () {
     DatiState dati({String? avviso, bool login = false, bool offline = false}) => DatiState(
-          data: _leggi(_foglio()),
-          unione: const UnioneRisultato([], ReportNomi(mancanti: {}, suggerimenti: [], duplicati: [])),
-          aggiornatoAl: DateTime(2026, 11, 25),
-          daCache: false,
-          avviso: avviso,
-          avvisoRichiedeLogin: login,
-          offline: offline,
-        );
+      data: _leggi(_foglio()),
+      unione: const UnioneRisultato([], ReportNomi(mancanti: {}, suggerimenti: [], duplicati: [])),
+      aggiornatoAl: DateTime(2026, 11, 25),
+      daCache: false,
+      avviso: avviso,
+      avvisoRichiedeLogin: login,
+      offline: offline,
+    );
     test('priorità: aggiornamento > accesso scaduto > offline > errore > collegato', () {
       expect(calcolaStato(dati: dati(), inCorso: true), StatoConnessione.aggiornamento);
       expect(calcolaStato(dati: dati(), inCorso: false), StatoConnessione.connesso);
@@ -390,21 +426,36 @@ class _Repo implements BrancoRepository {
   Future<CaricamentoDati?> daCache() async => null;
   @override
   Future<CaricamentoDati> daRete() async => CaricamentoDati(
-        BrancoData.daTab(_p, {
-          _p.tabDati: fxDati,
-          _p.tabCensimenti: fxCensimenti,
-          _p.tabPrede: fxPrede,
-          _p.tabSestiglie: fxSestiglie,
-          _p.tabBilancio: bilancio,
-        }),
-        DateTime(2026, 11, 25, 14, 30),
-        daCache: false,
-      );
+    BrancoData.daTab(_p, {
+      _p.tabDati: fxDati,
+      _p.tabCensimenti: fxCensimenti,
+      _p.tabPrede: fxPrede,
+      _p.tabSestiglie: fxSestiglie,
+      _p.tabBilancio: bilancio,
+    }),
+    DateTime(2026, 11, 25, 14, 30),
+    daCache: false,
+  );
   @override
   Future<void> esci() async {}
 }
 
 class _Scrittura implements ScritturaService {
+  @override
+  Future<void> impostaImportoQuota(String quota, double importo) async {}
+  @override
+  Future<void> creaQuotaExtra(String nome, double importo, List<String> lupetti) async {}
+  @override
+  Future<void> segnaQuotaExtra({
+    required String quota,
+    required String lupetto,
+    required DateTime? data,
+    required bool attesaPagata,
+    bool forza = false,
+  }) async {}
+  @override
+  Future<void> eliminaQuotaExtra(String quota) async {}
+
   final rimborsi = <List<Movimento>>[];
   final nuovi = <NuovoLupetto>[];
   final eliminati = <Map<String, String>>[];
@@ -427,6 +478,7 @@ class _Scrittura implements ScritturaService {
     nuovi.add(n);
     return const EsitoNuovoLupetto(['Dati e recapiti'], {});
   }
+
   @override
   Future<EsitoEliminazione> eliminaLupetto(Map<String, String> nomiPerTab) async {
     eliminati.add(nomiPerTab);
@@ -438,15 +490,17 @@ Future<void> _avvia(WidgetTester t, _Scrittura w, {List<List<Object?>>? bilancio
   t.view.physicalSize = const Size(800, 2000);
   t.view.devicePixelRatio = 1.0;
   addTearDown(t.view.reset);
-  await t.pumpWidget(ProviderScope(
-    retry: (_, _) => null,
-    overrides: [
-      repositoryProvider.overrideWithValue(_Repo(bilancio ?? fxBilancio)),
-      scritturaProvider.overrideWithValue(w),
-      controlloOnlineProvider.overrideWithValue(() async => true),
-    ],
-    child: const LupettiApp(),
-  ));
+  await t.pumpWidget(
+    ProviderScope(
+      retry: (_, _) => null,
+      overrides: [
+        repositoryProvider.overrideWithValue(_Repo(bilancio ?? fxBilancio)),
+        scritturaProvider.overrideWithValue(w),
+        controlloOnlineProvider.overrideWithValue(() async => true),
+      ],
+      child: const LupettiApp(),
+    ),
+  );
   await t.pumpAndSettle();
 }
 
@@ -454,12 +508,7 @@ void mainEliminazione() {
   final p = _p;
 
   FakeSheets foglio() => _foglio();
-  Map<String, String> nomi(String n) => {
-        p.tabDati: n,
-        p.tabSestiglie: n,
-        p.tabCensimenti: n,
-        p.tabPrede: n,
-      };
+  Map<String, String> nomi(String n) => {p.tabDati: n, p.tabSestiglie: n, p.tabCensimenti: n, p.tabPrede: n};
 
   group('eliminare un lupetto', () {
     test('piano: trova la riga giusta; nome assente o doppio sono errori', () {
@@ -467,14 +516,18 @@ void mainEliminazione() {
       expect(piano.rigaA1, 4); // riga vuota + intestazione + Mario + Giulia
       expect(piano.indiceRiga0, 3);
       expect(piano.celleNome, "'Dati e recapiti'!A4");
-      expect(() => pianificaEliminazione(tab: 'T', valori: fxDati, nomeNelTab: 'Nessuno Qui'),
-          throwsA(isA<LupettoNonTrovatoException>()));
+      expect(
+        () => pianificaEliminazione(tab: 'T', valori: fxDati, nomeNelTab: 'Nessuno Qui'),
+        throwsA(isA<LupettoNonTrovatoException>()),
+      );
       final doppio = [
         ...fxDati,
         ['Mario Rossi', '3° anno'],
       ];
-      expect(() => pianificaEliminazione(tab: 'T', valori: doppio, nomeNelTab: 'Mario Rossi'),
-          throwsA(isA<NomeAmbiguoException>()));
+      expect(
+        () => pianificaEliminazione(tab: 'T', valori: doppio, nomeNelTab: 'Mario Rossi'),
+        throwsA(isA<NomeAmbiguoException>()),
+      );
     });
 
     test('rimuove la riga da tutti e 4 i tab e lascia intatti gli altri e il Bilancio', () async {
@@ -584,13 +637,13 @@ class _ConInserimento {
   bool _fatto = false;
 
   http.Client get client => MockClient((req) async {
-        final path = Uri.decodeFull(req.url.path);
-        if (!_fatto && req.method == 'GET' && path.contains('/values/') && path.contains('!A') && !path.contains(':')) {
-          _fatto = true;
-          f.tabs['Sestiglie']!.insert(1, <Object?>['Intruso', 'X']);
-        }
-        return req.method == 'GET'
-            ? f.client.get(req.url, headers: req.headers)
-            : f.client.post(req.url, headers: req.headers, body: req.body);
-      });
+    final path = Uri.decodeFull(req.url.path);
+    if (!_fatto && req.method == 'GET' && path.contains('/values/') && path.contains('!A') && !path.contains(':')) {
+      _fatto = true;
+      f.tabs['Sestiglie']!.insert(1, <Object?>['Intruso', 'X']);
+    }
+    return req.method == 'GET'
+        ? f.client.get(req.url, headers: req.headers)
+        : f.client.post(req.url, headers: req.headers, body: req.body);
+  });
 }

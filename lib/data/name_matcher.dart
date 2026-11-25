@@ -12,6 +12,7 @@ class BrancoData {
     required this.sestiglie,
     required this.movimenti,
     this.capi = const [],
+    this.quote = const QuoteTab(),
   });
   final List<DatiRecapiti> dati;
   final List<Censimento> censimenti;
@@ -22,6 +23,9 @@ class BrancoData {
   /// Capi che possono fare spese (tab opzionale "Capi").
   final List<String> capi;
 
+  /// Importi delle quote e quote extra (tab opzionale "Quote").
+  final QuoteTab quote;
+
   /// [tab] = risultato di SheetsClient.batchGet (nome tab → righe).
   factory BrancoData.daTab(SheetProfile p, Map<String, List<Riga>> tab) {
     return BrancoData(
@@ -31,6 +35,7 @@ class BrancoData {
       sestiglie: parseSestiglie(tab[p.tabSestiglie] ?? const []),
       movimenti: parseBilancio(tab[p.tabBilancio] ?? const []),
       capi: parseCapi(tab[p.tabCapi] ?? const []),
+      quote: parseQuote(tab[p.tabQuote] ?? const []),
     );
   }
 }
@@ -43,10 +48,7 @@ class UnioneRisultato {
 
 /// Unisce i 4 tab per lupetto usando il nome normalizzato come chiave.
 /// Non esegue abbinamenti "furbi": i casi dubbi finiscono nel report.
-UnioneRisultato unisciPerNome(
-  BrancoData d, {
-  Map<String, String> alias = AppConfig.aliasNomi,
-}) {
+UnioneRisultato unisciPerNome(BrancoData d, {Map<String, String> alias = AppConfig.aliasNomi}) {
   String chiave(String nome) {
     final k = normalizeName(nome);
     return alias[k] ?? k;
@@ -74,12 +76,7 @@ UnioneRisultato unisciPerNome(
   final iSest = indicizza(d.sestiglie.righe, (x) => x.nome, nomiTab[3]);
 
   // Ordine di apparizione: prima i tab "principali", poi gli altri.
-  final chiavi = <String>{
-    ...iDati.keys,
-    ...iCens.keys,
-    ...iPrede.keys,
-    ...iSest.keys,
-  };
+  final chiavi = <String>{...iDati.keys, ...iCens.keys, ...iPrede.keys, ...iSest.keys};
 
   // Nome da mostrare: il primo senza segnaposto "_" (es. "Diego ____").
   String nomeVisibile(String k) {
@@ -129,8 +126,5 @@ UnioneRisultato unisciPerNome(
   }
 
   lupetti.sort((a, b) => a.nome.toLowerCase().compareTo(b.nome.toLowerCase()));
-  return UnioneRisultato(
-    lupetti,
-    ReportNomi(mancanti: mancanti, suggerimenti: suggerimenti, duplicati: duplicati),
-  );
+  return UnioneRisultato(lupetti, ReportNomi(mancanti: mancanti, suggerimenti: suggerimenti, duplicati: duplicati));
 }

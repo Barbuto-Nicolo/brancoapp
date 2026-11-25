@@ -36,81 +36,99 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     final rimborsi = ref.watch(rimborsiPendentiProvider).daRimborsare.length;
 
     return Scaffold(
-      body: Column(children: [
-        IntestazioneScout(
-          titolo: _titoli[_tab],
-          azioni: [
-            inCorso
-                ? const SizedBox(
-                    width: 48,
-                    height: 48,
-                    child: Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+      body: Column(
+        children: [
+          IntestazioneScout(
+            titolo: _titoli[_tab],
+            azioni: [
+              inCorso
+                  ? const SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                        ),
                       ),
+                    )
+                  : IconButton(
+                      tooltip: 'Aggiorna dal foglio',
+                      icon: const Icon(Icons.refresh),
+                      onPressed: () => ref.read(datiProvider.notifier).aggiorna(),
                     ),
-                  )
-                : IconButton(
-                    tooltip: 'Aggiorna dal foglio',
-                    icon: const Icon(Icons.refresh),
-                    onPressed: () => ref.read(datiProvider.notifier).aggiorna(),
-                  ),
-            PopupMenuButton<String>(
-              tooltip: 'Menu',
-              iconColor: Colors.white,
-              onSelected: (v) async {
-                if (v == 'capi') {
-                  Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const CapiScreen()));
-                } else if (v == 'nomi') {
-                  Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ControlloNomiScreen()));
-                } else if (v == 'esci') {
-                  await ref.read(repositoryProvider).esci();
-                  ref.invalidate(datiProvider);
-                }
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'capi', child: Text('Capi e spese')),
-                PopupMenuItem(value: 'nomi', child: Text('Controllo nomi')),
-                PopupMenuItem(value: 'esci', child: Text('Esci')),
-              ],
-            ),
-          ],
-        ),
-        if (dati?.avviso != null)
-          MaterialBanner(
-            backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-            dividerColor: Colors.transparent,
-            content: Text(dati!.avviso!),
-            actions: [
-              if (dati.avvisoRichiedeLogin)
-                TextButton(
-                  onPressed: () async {
-                    try {
-                      await ref.read(authServiceProvider).accedi();
-                      await ref.read(datiProvider.notifier).aggiorna();
-                    } catch (_) {}
-                  },
-                  child: const Text('Accedi'),
-                )
-              else
-                TextButton(
-                  onPressed: () => ref.read(datiProvider.notifier).aggiorna(),
-                  child: const Text('Riprova'),
-                ),
+              PopupMenuButton<String>(
+                tooltip: 'Menu',
+                iconColor: Colors.white,
+                onSelected: (v) async {
+                  if (v == 'capi') {
+                    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const CapiScreen()));
+                  } else if (v == 'nomi') {
+                    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ControlloNomiScreen()));
+                  } else if (v == 'esci') {
+                    await ref.read(repositoryProvider).esci();
+                    ref.invalidate(datiProvider);
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'capi', child: Text('Capi e spese')),
+                  PopupMenuItem(value: 'nomi', child: Text('Controllo nomi')),
+                  PopupMenuItem(value: 'esci', child: Text('Esci')),
+                ],
+              ),
             ],
           ),
-        Expanded(child: _pagine[_tab]),
-      ]),
+          if (dati?.avviso != null)
+            MaterialBanner(
+              backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+              dividerColor: Colors.transparent,
+              content: Text(dati!.avviso!),
+              actions: [
+                if (dati.avvisoRichiedeLogin)
+                  TextButton(
+                    onPressed: () async {
+                      try {
+                        // Nuovo accesso = possibile account diverso: i dati salvati del
+                        // precedente non devono restare visibili.
+                        await ref.read(cacheStoreProvider).cancella(ref.read(profiloProvider).nome);
+                        await ref.read(authServiceProvider).accedi();
+                        ref.invalidate(datiProvider);
+                      } catch (_) {}
+                    },
+                    child: const Text('Accedi'),
+                  )
+                else
+                  TextButton(onPressed: () => ref.read(datiProvider.notifier).aggiorna(), child: const Text('Riprova')),
+              ],
+            ),
+          Expanded(child: _pagine[_tab]),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
         onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: [
-          const NavigationDestination(icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups), label: 'Lupetti'),
-          const NavigationDestination(icon: Icon(Icons.diversity_3_outlined), selectedIcon: Icon(Icons.diversity_3), label: 'Sestiglie'),
-          const NavigationDestination(icon: Icon(Icons.fact_check_outlined), selectedIcon: Icon(Icons.fact_check), label: 'Quote'),
-          const NavigationDestination(icon: Icon(Icons.emoji_events_outlined), selectedIcon: Icon(Icons.emoji_events), label: 'Prede'),
+          const NavigationDestination(
+            icon: Icon(Icons.groups_outlined),
+            selectedIcon: Icon(Icons.groups),
+            label: 'Lupetti',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.diversity_3_outlined),
+            selectedIcon: Icon(Icons.diversity_3),
+            label: 'Sestiglie',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.fact_check_outlined),
+            selectedIcon: Icon(Icons.fact_check),
+            label: 'Quote',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.emoji_events_outlined),
+            selectedIcon: Icon(Icons.emoji_events),
+            label: 'Prede',
+          ),
           NavigationDestination(
             icon: Badge(
               isLabelVisible: rimborsi > 0,

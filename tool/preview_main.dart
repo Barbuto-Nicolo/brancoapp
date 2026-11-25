@@ -19,7 +19,16 @@ import '../test/fixtures/fixtures.dart';
 final _p = AppConfig.profili['copia']!;
 
 final _bilancio = <List<Object?>>[
-  ['Dettagli spese', 'Categoria', 'Costo', 'Data della transazione', 'Pagato da', 'Note', 'Da rimborsare', 'Rimborsata il'],
+  [
+    'Dettagli spese',
+    'Categoria',
+    'Costo',
+    'Data della transazione',
+    'Pagato da',
+    'Note',
+    'Da rimborsare',
+    'Rimborsata il',
+  ],
   ['Conto iniziale', 'Sede', 235, '', '', 'Contanti'],
   ['Colori', 'Materiale', -18, s(2026, 11, 3), 'Akela', '', 'sì'],
   ['Quaderni', 'Attività', -7.5, s(2026, 11, 3), 'Akela', '', 'sì'],
@@ -35,27 +44,42 @@ class _Repo implements BrancoRepository {
   Future<CaricamentoDati?> daCache() async => null;
   @override
   Future<CaricamentoDati> daRete() async => CaricamentoDati(
-        BrancoData.daTab(_p, {
-          _p.tabDati: fxDati,
-          _p.tabCensimenti: fxCensimenti,
-          _p.tabPrede: fxPrede,
-          _p.tabSestiglie: fxSestiglie,
-          _p.tabBilancio: _bilancio,
-          _p.tabCapi: [
-            ['Capo/a'],
-            ['Akela'],
-            ['Bagheera'],
-            ['Raksha'],
-          ],
-        }),
-        DateTime.now(),
-        daCache: false,
-      );
+    BrancoData.daTab(_p, {
+      _p.tabDati: fxDati,
+      _p.tabCensimenti: fxCensimenti,
+      _p.tabPrede: fxPrede,
+      _p.tabSestiglie: fxSestiglie,
+      _p.tabBilancio: _bilancio,
+      _p.tabCapi: [
+        ['Capo/a'],
+        ['Akela'],
+        ['Bagheera'],
+        ['Raksha'],
+      ],
+    }),
+    DateTime.now(),
+    daCache: false,
+  );
   @override
   Future<void> esci() async {}
 }
 
 class _Scrittura implements ScritturaService {
+  @override
+  Future<void> impostaImportoQuota(String quota, double importo) async {}
+  @override
+  Future<void> creaQuotaExtra(String nome, double importo, List<String> lupetti) async {}
+  @override
+  Future<void> segnaQuotaExtra({
+    required String quota,
+    required String lupetto,
+    required DateTime? data,
+    required bool attesaPagata,
+    bool forza = false,
+  }) async {}
+  @override
+  Future<void> eliminaQuotaExtra(String quota) async {}
+
   @override
   Future<void> scriviCampi({
     required String tab,
@@ -78,12 +102,14 @@ class _Scrittura implements ScritturaService {
 }
 
 void main() {
-  runApp(ProviderScope(
-    overrides: [
-      repositoryProvider.overrideWithValue(_Repo()),
-      scritturaProvider.overrideWithValue(_Scrittura()),
-      controlloOnlineProvider.overrideWithValue(() async => true),
-    ],
-    child: const LupettiApp(),
-  ));
+  runApp(
+    ProviderScope(
+      overrides: [
+        repositoryProvider.overrideWithValue(_Repo()),
+        scritturaProvider.overrideWithValue(_Scrittura()),
+        controlloOnlineProvider.overrideWithValue(() async => true),
+      ],
+      child: const LupettiApp(),
+    ),
+  );
 }

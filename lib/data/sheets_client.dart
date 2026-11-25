@@ -22,7 +22,7 @@ typedef TokenProvider = Future<String> Function();
 
 class SheetsClient {
   SheetsClient({required this.profilo, required this.token, http.Client? httpClient})
-      : _http = httpClient ?? http.Client();
+    : _http = httpClient ?? http.Client();
 
   final SheetProfile profilo;
   final TokenProvider token;
@@ -33,8 +33,7 @@ class SheetsClient {
   /// 'Nome tab' in A1: apici raddoppiati se presenti nel nome.
   static String quotaTab(String tab) => "'${tab.replaceAll("'", "''")}'";
 
-  Future<Map<String, String>> _headers() async =>
-      {'Authorization': 'Bearer ${await token()}'};
+  Future<Map<String, String>> _headers() async => {'Authorization': 'Bearer ${await token()}'};
 
   /// UNA sola chiamata per tutti i tab. Risultato: nome tab → righe.
   /// UNFORMATTED_VALUE + SERIAL_NUMBER: importi come numeri, date come seriali.
@@ -43,12 +42,23 @@ class SheetsClient {
   /// esiste ancora (Google risponde 400 "range non valido"), si ripete la
   /// chiamata senza di lui.
   Future<Map<String, List<Riga>>> batchGet() async {
-    try {
-      return await _batchGet([...profilo.tuttiITab, profilo.tabCapi]);
-    } on SheetsException catch (e) {
-      if (e.statusCode != 400) rethrow;
-      return _batchGet(profilo.tuttiITab);
+    // Tab opzionali ("Capi", "Quote"): se uno non esiste Google risponde 400,
+    // quindi si riprova togliendo gli opzionali uno alla volta.
+    final obbligatori = profilo.tuttiITab;
+    final tentativi = <List<String>>[
+      [...obbligatori, profilo.tabCapi, profilo.tabQuote],
+      [...obbligatori, profilo.tabCapi],
+      [...obbligatori, profilo.tabQuote],
+      obbligatori,
+    ];
+    for (var i = 0; i < tentativi.length; i++) {
+      try {
+        return await _batchGet(tentativi[i]);
+      } on SheetsException catch (e) {
+        if (e.statusCode != 400 || i == tentativi.length - 1) rethrow;
+      }
     }
+    throw StateError('non raggiungibile');
   }
 
   Future<Map<String, List<Riga>>> _batchGet(List<String> tab) async {
@@ -71,9 +81,7 @@ class SheetsClient {
     final out = <String, List<Riga>>{};
     for (var i = 0; i < tab.length; i++) {
       final values = (ranges[i] as Map<String, dynamic>)['values'] as List?;
-      out[tab[i]] = [
-        for (final r in values ?? const []) List<Object?>.from(r as List),
-      ];
+      out[tab[i]] = [for (final r in values ?? const []) List<Object?>.from(r as List)];
     }
     return out;
   }
@@ -81,27 +89,27 @@ class SheetsClient {
   /// Crea un tab nuovo (usato solo per "Capi").
   Future<void> creaTab(String titolo) async {
     final uri = Uri.parse('$_base/${profilo.spreadsheetId}:batchUpdate');
-    final res = await _http.post(uri,
-        headers: {...await _headers(), 'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'requests': [
-            {
-              'addSheet': {
-                'properties': {'title': titolo},
-              },
+    final res = await _http.post(
+      uri,
+      headers: {...await _headers(), 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'requests': [
+          {
+            'addSheet': {
+              'properties': {'title': titolo},
             },
-          ],
-        }));
+          },
+        ],
+      }),
+    );
     _controlla(res);
   }
 
   /// Legge un solo range A1 (per il controllo conflitti, Fase 3).
   Future<Riga?> leggiRange(String rangeA1) async {
-    final uri = Uri.parse('$_base/${profilo.spreadsheetId}/values/${Uri.encodeComponent(rangeA1)}')
-        .replace(queryParameters: {
-      'valueRenderOption': 'UNFORMATTED_VALUE',
-      'dateTimeRenderOption': 'SERIAL_NUMBER',
-    });
+    final uri = Uri.parse(
+      '$_base/${profilo.spreadsheetId}/values/${Uri.encodeComponent(rangeA1)}',
+    ).replace(queryParameters: {'valueRenderOption': 'UNFORMATTED_VALUE', 'dateTimeRenderOption': 'SERIAL_NUMBER'});
     final res = await _http.get(uri, headers: await _headers());
     _controlla(res);
     final values = (jsonDecode(res.body) as Map<String, dynamic>)['values'] as List?;
@@ -111,11 +119,9 @@ class SheetsClient {
 
   /// Legge un intero tab (usato al momento della scrittura per ritrovare le righe).
   Future<List<Riga>> leggiTab(String tab) async {
-    final uri = Uri.parse('$_base/${profilo.spreadsheetId}/values/${Uri.encodeComponent(quotaTab(tab))}')
-        .replace(queryParameters: {
-      'valueRenderOption': 'UNFORMATTED_VALUE',
-      'dateTimeRenderOption': 'SERIAL_NUMBER',
-    });
+    final uri = Uri.parse(
+      '$_base/${profilo.spreadsheetId}/values/${Uri.encodeComponent(quotaTab(tab))}',
+    ).replace(queryParameters: {'valueRenderOption': 'UNFORMATTED_VALUE', 'dateTimeRenderOption': 'SERIAL_NUMBER'});
     final res = await _http.get(uri, headers: await _headers());
     _controlla(res);
     final values = (jsonDecode(res.body) as Map<String, dynamic>)['values'] as List?;
@@ -140,15 +146,15 @@ class SheetsClient {
           },
       ],
     });
-    final res = await _http.post(uri,
-        headers: {...await _headers(), 'Content-Type': 'application/json'}, body: body);
+    final res = await _http.post(uri, headers: {...await _headers(), 'Content-Type': 'application/json'}, body: body);
     _controlla(res);
   }
 
   /// sheetId numerico di un tab (serve per inserire righe).
   Future<int> sheetId(String tab) async {
-    final uri = Uri.parse('$_base/${profilo.spreadsheetId}')
-        .replace(queryParameters: {'fields': 'sheets.properties(sheetId,title)'});
+    final uri = Uri.parse(
+      '$_base/${profilo.spreadsheetId}',
+    ).replace(queryParameters: {'fields': 'sheets.properties(sheetId,title)'});
     final res = await _http.get(uri, headers: await _headers());
     _controlla(res);
     final sheets = (jsonDecode(res.body) as Map<String, dynamic>)['sheets'] as List;
@@ -163,45 +169,49 @@ class SheetsClient {
   /// in basso le righe successive (e quindi il totale).
   Future<void> inserisciRiga(int sheetId, int indiceRiga0) async {
     final uri = Uri.parse('$_base/${profilo.spreadsheetId}:batchUpdate');
-    final res = await _http.post(uri,
-        headers: {...await _headers(), 'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'requests': [
-            {
-              'insertDimension': {
-                'range': {
-                  'sheetId': sheetId,
-                  'dimension': 'ROWS',
-                  'startIndex': indiceRiga0,
-                  'endIndex': indiceRiga0 + 1,
-                },
-                'inheritFromBefore': true,
+    final res = await _http.post(
+      uri,
+      headers: {...await _headers(), 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'requests': [
+          {
+            'insertDimension': {
+              'range': {
+                'sheetId': sheetId,
+                'dimension': 'ROWS',
+                'startIndex': indiceRiga0,
+                'endIndex': indiceRiga0 + 1,
               },
+              'inheritFromBefore': true,
             },
-          ],
-        }));
+          },
+        ],
+      }),
+    );
     _controlla(res);
   }
 
   /// Elimina la riga [indiceRiga0] (0-based) e fa salire le successive.
   Future<void> eliminaRiga(int sheetId, int indiceRiga0) async {
     final uri = Uri.parse('$_base/${profilo.spreadsheetId}:batchUpdate');
-    final res = await _http.post(uri,
-        headers: {...await _headers(), 'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'requests': [
-            {
-              'deleteDimension': {
-                'range': {
-                  'sheetId': sheetId,
-                  'dimension': 'ROWS',
-                  'startIndex': indiceRiga0,
-                  'endIndex': indiceRiga0 + 1,
-                },
+    final res = await _http.post(
+      uri,
+      headers: {...await _headers(), 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'requests': [
+          {
+            'deleteDimension': {
+              'range': {
+                'sheetId': sheetId,
+                'dimension': 'ROWS',
+                'startIndex': indiceRiga0,
+                'endIndex': indiceRiga0 + 1,
               },
             },
-          ],
-        }));
+          },
+        ],
+      }),
+    );
     _controlla(res);
   }
 

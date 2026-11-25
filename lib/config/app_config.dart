@@ -15,6 +15,7 @@ class SheetProfile {
     required this.tabSestiglie,
     required this.tabBilancio,
     this.tabCapi = 'Capi',
+    this.tabQuote = 'Quote',
     this.titoloFoglio = 'BRANCO 2026_2027',
   });
 
@@ -30,12 +31,15 @@ class SheetProfile {
   /// viene creato dall'app la prima volta che si aggiunge un capo.
   final String tabCapi;
 
+  /// Tab OPZIONALE con gli importi delle quote e le quote extra (uscite, ecc.).
+  /// Colonne: Quota | Importo | Lupetto/a | Pagato il. Creato dall'app al primo uso.
+  final String tabQuote;
+
   /// Nome del file Google Sheets, mostrato nell'app (solo per informazione).
   final String titoloFoglio;
 
   /// Ordine fisso usato da batchGet: la risposta segue lo stesso ordine.
-  List<String> get tuttiITab =>
-      [tabDati, tabCensimenti, tabPrede, tabSestiglie, tabBilancio];
+  List<String> get tuttiITab => [tabDati, tabCensimenti, tabPrede, tabSestiglie, tabBilancio];
 
   /// Il foglio reale non è ancora stato autorizzato: finché l'ID è il
   /// segnaposto, l'app rifiuta di usarlo.
@@ -89,8 +93,7 @@ class AppConfig {
   /// copiati dalla console Google Cloud. Vedi docs/CONFIGURAZIONE_GOOGLE.md.
   /// - Android: serve il client ID di tipo *Applicazione web* (serverClientId).
   /// - iOS: il client ID iOS è in ios/Runner/Info.plist (GIDClientID).
-  static const String googleServerClientId =
-      '346696487405-msbkc7t65lc20fc0kbjv83cgchgjgrqf.apps.googleusercontent.com';
+  static const String googleServerClientId = '346696487405-msbkc7t65lc20fc0kbjv83cgchgjgrqf.apps.googleusercontent.com';
 
   /// Client ID di tipo *Applicazione web* usato SOLO dalla versione per il browser
   /// (GitHub Pages). Nel client in Google Cloud l'origine JavaScript autorizzata

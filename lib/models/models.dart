@@ -166,12 +166,14 @@ class RiepilogoBilancio {
 
   double get saldo => movimenti.fold(0.0, (s, m) => s + m.importo);
 
-  Map<String, double> get perCategoria =>
-      _somma((m) => m.categoria ?? 'Senza categoria');
+  Map<String, double> get perCategoria => _somma((m) => m.categoria ?? 'Senza categoria');
   Map<String, double> get perPagatoDa => _somma((m) => m.pagatoDa ?? 'Non indicato');
 
   /// Spese anticipate e non ancora rimborsate.
-  List<Movimento> get daRimborsare => [for (final m in movimenti) if (m.rimborsoPendente) m];
+  List<Movimento> get daRimborsare => [
+    for (final m in movimenti)
+      if (m.rimborsoPendente) m,
+  ];
 
   /// Chi deve ricevere soldi → importo totale (positivo).
   Map<String, double> get rimborsiPerPersona {
@@ -195,14 +197,7 @@ class RiepilogoBilancio {
 
 /// Vista unita di un lupetto su tutti i tab (qualunque parte può mancare).
 class Lupetto {
-  const Lupetto({
-    required this.chiave,
-    required this.nome,
-    this.dati,
-    this.censimento,
-    this.prede,
-    this.sestiglie,
-  });
+  const Lupetto({required this.chiave, required this.nome, this.dati, this.censimento, this.prede, this.sestiglie});
   final String chiave; // nome normalizzato
   final String nome; // nome da mostrare
   final DatiRecapiti? dati;
@@ -220,11 +215,7 @@ class Lupetto {
 
 /// Report dei nomi che non trovano corrispondenza tra i tab.
 class ReportNomi {
-  const ReportNomi({
-    required this.mancanti,
-    required this.suggerimenti,
-    required this.duplicati,
-  });
+  const ReportNomi({required this.mancanti, required this.suggerimenti, required this.duplicati});
 
   /// nome da mostrare → tab in cui il lupetto NON compare.
   final Map<String, List<String>> mancanti;
@@ -266,4 +257,46 @@ class EsitoEliminazione {
   const EsitoEliminazione(this.eliminati, this.saltati);
   final List<String> eliminati;
   final Map<String, String> saltati;
+}
+
+/// Una riga del tab opzionale "Quote" riferita a un lupetto: una quota extra
+/// (uscita, gita...) che il lupetto deve pagare.
+class QuotaExtraRiga {
+  const QuotaExtraRiga({required this.quota, required this.lupetto, this.importo, this.pagatoIl});
+  final String quota;
+  final String lupetto;
+  final double? importo;
+  final DateTime? pagatoIl;
+  bool get pagata => pagatoIl != null;
+}
+
+/// Tab opzionale "Quote": importi delle quote fisse (Censimento, SanFra, VdB)
+/// e quote extra con lo stato di pagamento di ogni lupetto.
+class QuoteTab {
+  const QuoteTab({this.importi = const {}, this.righe = const []});
+
+  /// Nome della voce (es. "Quota SanFra") → importo per lupetto.
+  final Map<String, double> importi;
+  final List<QuotaExtraRiga> righe;
+
+  /// Nomi delle quote extra, nell'ordine in cui compaiono nel foglio.
+  List<String> get nomiExtra {
+    final out = <String>[];
+    for (final r in righe) {
+      if (!out.any((n) => n.toLowerCase() == r.quota.toLowerCase())) out.add(r.quota);
+    }
+    return out;
+  }
+
+  List<QuotaExtraRiga> di(String quota) => [
+    for (final r in righe)
+      if (r.quota.toLowerCase() == quota.toLowerCase()) r,
+  ];
+
+  double? importoDi(String voce) {
+    for (final e in importi.entries) {
+      if (e.key.toLowerCase() == voce.toLowerCase()) return e.value;
+    }
+    return null;
+  }
 }

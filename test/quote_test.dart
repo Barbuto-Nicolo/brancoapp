@@ -18,12 +18,12 @@ import 'fixtures/fixtures.dart';
 final _p = AppConfig.profili['copia']!;
 
 BrancoData _dati() => BrancoData.daTab(_p, {
-      _p.tabDati: fxDati,
-      _p.tabCensimenti: fxCensimenti,
-      _p.tabPrede: fxPrede,
-      _p.tabSestiglie: fxSestiglie,
-      _p.tabBilancio: fxBilancio,
-    });
+  _p.tabDati: fxDati,
+  _p.tabCensimenti: fxCensimenti,
+  _p.tabPrede: fxPrede,
+  _p.tabSestiglie: fxSestiglie,
+  _p.tabBilancio: fxBilancio,
+});
 
 class _Repo implements BrancoRepository {
   @override
@@ -35,6 +35,21 @@ class _Repo implements BrancoRepository {
 }
 
 class _Scrittura implements ScritturaService {
+  @override
+  Future<void> impostaImportoQuota(String quota, double importo) async {}
+  @override
+  Future<void> creaQuotaExtra(String nome, double importo, List<String> lupetti) async {}
+  @override
+  Future<void> segnaQuotaExtra({
+    required String quota,
+    required String lupetto,
+    required DateTime? data,
+    required bool attesaPagata,
+    bool forza = false,
+  }) async {}
+  @override
+  Future<void> eliminaQuotaExtra(String quota) async {}
+
   final chiamate = <List<Campo>>[];
   @override
   Future<void> scriviCampi({
@@ -42,8 +57,7 @@ class _Scrittura implements ScritturaService {
     required String nomeNelTab,
     required List<Campo> campi,
     bool forza = false,
-  }) async =>
-      chiamate.add(campi);
+  }) async => chiamate.add(campi);
   @override
   Future<String?> aggiungiMovimento(Movimento m) async => null;
   @override
@@ -63,15 +77,17 @@ Future<_Scrittura> _avvia(WidgetTester t) async {
   t.view.physicalSize = const Size(800, 2200);
   t.view.devicePixelRatio = 1.0;
   addTearDown(t.view.reset);
-  await t.pumpWidget(ProviderScope(
-    retry: (_, _) => null,
-    overrides: [
-      repositoryProvider.overrideWithValue(_Repo()),
-      scritturaProvider.overrideWithValue(w),
-      controlloOnlineProvider.overrideWithValue(() async => true),
-    ],
-    child: const LupettiApp(),
-  ));
+  await t.pumpWidget(
+    ProviderScope(
+      retry: (_, _) => null,
+      overrides: [
+        repositoryProvider.overrideWithValue(_Repo()),
+        scritturaProvider.overrideWithValue(w),
+        controlloOnlineProvider.overrideWithValue(() async => true),
+      ],
+      child: const LupettiApp(),
+    ),
+  );
   await t.pumpAndSettle();
   await t.tap(find.text('Quote'));
   await t.pumpAndSettle();
@@ -119,27 +135,31 @@ void main() {
 
   group('correggere un pagamento sbagliato (foglio finto)', () {
     FakeSheets foglio() => FakeSheets({
-          _p.tabDati: [for (final r in fxDati) List<Object?>.from(r)],
-          _p.tabCensimenti: [for (final r in fxCensimenti) List<Object?>.from(r)],
-          _p.tabPrede: [for (final r in fxPrede) List<Object?>.from(r)],
-          _p.tabSestiglie: [for (final r in fxSestiglie) List<Object?>.from(r)],
-          _p.tabBilancio: [for (final r in fxBilancio) List<Object?>.from(r)],
-        });
+      _p.tabDati: [for (final r in fxDati) List<Object?>.from(r)],
+      _p.tabCensimenti: [for (final r in fxCensimenti) List<Object?>.from(r)],
+      _p.tabPrede: [for (final r in fxPrede) List<Object?>.from(r)],
+      _p.tabSestiglie: [for (final r in fxSestiglie) List<Object?>.from(r)],
+      _p.tabBilancio: [for (final r in fxBilancio) List<Object?>.from(r)],
+    });
     SheetsWriteService svc(FakeSheets f) => SheetsWriteService(
-          client: SheetsClient(profilo: _p, token: () async => 't', httpClient: f.client),
-          online: () async => true,
-        );
+      client: SheetsClient(profilo: _p, token: () async => 't', httpClient: f.client),
+      online: () async => true,
+    );
 
     test('"non pagato" + data cancellata: il foglio torna com\'era e l\'app lo rilegge', () async {
       final f = foglio();
       final giulia = lupetti.firstWhere((x) => x.nome == 'Giulia Bianchi').censimento!;
-      await svc(f).scriviCampi(tab: _p.tabCensimenti, nomeNelTab: 'Giulia Bianchi', campi: [
-        Campo(etichetta: 'Censimento', header: 'Censimento', atteso: giulia.censimento, nuovo: 'non pagato'),
-        Campo(etichetta: 'Data', header: 'Data', atteso: giulia.dataCensimento, nuovo: ''),
-      ]);
-      final riletto = BrancoData.daTab(_p, {for (final e in f.tabs.entries) e.key: e.value})
-          .censimenti
-          .firstWhere((c) => c.nome == 'Giulia Bianchi');
+      await svc(f).scriviCampi(
+        tab: _p.tabCensimenti,
+        nomeNelTab: 'Giulia Bianchi',
+        campi: [
+          Campo(etichetta: 'Censimento', header: 'Censimento', atteso: giulia.censimento, nuovo: 'non pagato'),
+          Campo(etichetta: 'Data', header: 'Data', atteso: giulia.dataCensimento, nuovo: ''),
+        ],
+      );
+      final riletto = BrancoData.daTab(_p, {
+        for (final e in f.tabs.entries) e.key: e.value,
+      }).censimenti.firstWhere((c) => c.nome == 'Giulia Bianchi');
       expect(riletto.censimentoDaPagare, isTrue);
       expect(riletto.dataCensimento, isNull);
       expect(riletto.quotaVdB, 'pagato'); // le altre voci non si toccano
@@ -150,9 +170,11 @@ void main() {
       final giulia = lupetti.firstWhere((x) => x.nome == 'Giulia Bianchi').censimento!;
       f.tabs[_p.tabCensimenti]![2][4] = 'non pagato'; // già annullato da un altro
       await expectLater(
-        svc(f).scriviCampi(tab: _p.tabCensimenti, nomeNelTab: 'Giulia Bianchi', campi: [
-          Campo(etichetta: 'Censimento', header: 'Censimento', atteso: giulia.censimento, nuovo: 'non pagato'),
-        ]),
+        svc(f).scriviCampi(
+          tab: _p.tabCensimenti,
+          nomeNelTab: 'Giulia Bianchi',
+          campi: [Campo(etichetta: 'Censimento', header: 'Censimento', atteso: giulia.censimento, nuovo: 'non pagato')],
+        ),
         throwsA(isA<ConflittoException>()),
       );
       expect(f.scritture, isEmpty);

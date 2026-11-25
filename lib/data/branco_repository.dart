@@ -30,12 +30,8 @@ abstract class BrancoRepository {
 }
 
 class SheetsBrancoRepository implements BrancoRepository {
-  SheetsBrancoRepository({
-    required this.profilo,
-    required this.auth,
-    required this.cache,
-    http.Client? httpClient,
-  }) : _http = httpClient;
+  SheetsBrancoRepository({required this.profilo, required this.auth, required this.cache, http.Client? httpClient})
+    : _http = httpClient;
 
   final SheetProfile profilo;
   final AuthService auth;
@@ -70,6 +66,12 @@ class SheetsBrancoRepository implements BrancoRepository {
       throw RetePersaException();
     } on SheetsException catch (e) {
       if (e.nonAutorizzato) throw NonAutenticatoException();
+      if (e.accessoNegato) {
+        // Questo account non ha accesso al foglio: via anche i dati salvati sul telefono.
+        try {
+          await cache.cancella(profilo.nome);
+        } catch (_) {}
+      }
       rethrow;
     }
   }

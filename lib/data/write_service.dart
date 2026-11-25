@@ -49,6 +49,15 @@ class CapoGiaPresenteException implements Exception {
   final String nome;
 }
 
+/// Esiste già una quota con questo nome.
+class QuotaEsistenteException implements Exception {
+  QuotaEsistenteException(this.nome);
+  final String nome;
+}
+
+/// La quota ha già incassi: non si elimina.
+class QuotaConPagamentiException implements Exception {}
+
 /// Struttura del tab diversa dal previsto (intestazione o colonna mancante).
 class StrutturaException implements Exception {
   StrutturaException(this.dettaglio);
@@ -56,13 +65,7 @@ class StrutturaException implements Exception {
 }
 
 class Campo {
-  const Campo({
-    required this.etichetta,
-    required this.header,
-    required this.nuovo,
-    this.atteso,
-    this.offset = 0,
-  });
+  const Campo({required this.etichetta, required this.header, required this.nuovo, this.atteso, this.offset = 0});
 
   /// Nome mostrato all'utente (es. "Quota SanFra").
   final String etichetta;
@@ -162,10 +165,7 @@ Object? valorePerFoglio(Object? v) => v is DateTime ? dateToSerial(v) : v;
       conflitti.add(Conflitto(c.etichetta, attuale, c.atteso, c.nuovo));
       continue;
     }
-    celle.add(CellaDaScrivere(
-      '${SheetsClient.quotaTab(tab)}!${colLetter(col)}$numeroRiga',
-      valorePerFoglio(c.nuovo),
-    ));
+    celle.add(CellaDaScrivere('${SheetsClient.quotaTab(tab)}!${colLetter(col)}$numeroRiga', valorePerFoglio(c.nuovo)));
   }
   return (celle: celle, conflitti: conflitti);
 }
@@ -317,10 +317,12 @@ List<CellaDaScrivere> pianificaRimborsi({
       continue;
     }
     usate.add(trovata);
-    celle.add(CellaDaScrivere(
-      '${SheetsClient.quotaTab(tab)}!${colLetter(cRimbData)}${t.numeroRigaA1(trovata)}',
-      dateToSerial(data),
-    ));
+    celle.add(
+      CellaDaScrivere(
+        '${SheetsClient.quotaTab(tab)}!${colLetter(cRimbData)}${t.numeroRigaA1(trovata)}',
+        dateToSerial(data),
+      ),
+    );
   }
   if (conflitti.isNotEmpty) throw ConflittoException(conflitti);
   return celle;
@@ -437,6 +439,158 @@ PianoEliminazione pianificaEliminazione({
   return PianoEliminazione(a1 - 1, a1, '${SheetsClient.quotaTab(tab)}!${colLetter(cNome)}$a1');
 }
 
+// ---------------------------------------------------------------------------
+// Tab "Quote": Quota | Importo | Lupetto/a | Pagato il
+// ---------------------------------------------------------------------------
+
+class _TabQuote {
+  _TabQuote(this.nuovo, this.headerRow, this.cQ, this.cI, this.cL, this.cP, this.rows);
+  final bool nuovo;
+  final int headerRow;
+  final int cQ, cI, cL, cP;
+  final List<Riga> rows;
+  int rigaA1(int i) => headerRow + 2 + i;
+
+  /// Indice della prima riga libera (dopo l'ultima non vuota).
+  int get prossima {
+    var u = -1;
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].any((c) => !_vuota(c))) u = i;
+    }
+    return u + 1;
+  }
+}
+
+_TabQuote _apriQuote(String tab, List<Riga> valori) {
+  final t = TabTable.trova(valori, 'Quota');
+  if (t == null) {
+    if (valori.any((r) => r.any((c) => !_vuota(c)))) {
+      throw StrutturaException('Il tab "$tab" deve avere l\'intestazione "Quota" nella prima riga.');
+    }
+    return _TabQuote(true, 0, 0, 1, 2, 3, const []);
+  }
+  final c = [t.col('Quota'), t.col('Importo'), t.col('Lupetto/a'), t.col('Pagato il')];
+  if (c.any((x) => x < 0)) {
+    throw StrutturaException('Nel tab "$tab" servono le colonne Quota, Importo, Lupetto/a, Pagato il.');
+  }
+  return _TabQuote(false, t.headerRow, c[0], c[1], c[2], c[3], t.rows);
+}
+
+List<CellaDaScrivere> _intestazioniQuote(String tab, _TabQuote t) {
+  if (!t.nuovo) return const [];
+  final q = SheetsClient.quotaTab(tab);
+  return [
+    CellaDaScrivere('$q!A1', 'Quota'),
+    CellaDaScrivere('$q!B1', 'Importo'),
+    CellaDaScrivere('$q!C1', 'Lupetto/a'),
+    CellaDaScrivere('$q!D1', 'Pagato il'),
+  ];
+}
+
+String _kq(String s) => s.toLowerCase().trim();
+
+/// Parte PURA: importo di una quota fissa (riga senza lupetto): aggiorna o aggiunge.
+List<CellaDaScrivere> pianificaImportoQuota({
+  required String tab,
+  required List<Riga> valori,
+  required String quota,
+  required double importo,
+}) {
+  final t = _apriQuote(tab, valori);
+  final q = SheetsClient.quotaTab(tab);
+  for (var i = 0; i < t.rows.length; i++) {
+    final r = t.rows[i];
+    if (_kq(cellText(cellaAt(r, t.cQ)) ?? '') == _kq(quota) && cellText(cellaAt(r, t.cL)) == null) {
+      return [CellaDaScrivere('$q!${colLetter(t.cI)}${t.rigaA1(i)}', importo)];
+    }
+  }
+  final riga = t.rigaA1(t.prossima);
+  return [
+    ..._intestazioniQuote(tab, t),
+    CellaDaScrivere('$q!${colLetter(t.cQ)}$riga', quota),
+    CellaDaScrivere('$q!${colLetter(t.cI)}$riga', importo),
+  ];
+}
+
+/// Parte PURA: nuova quota extra, una riga per lupetto.
+List<CellaDaScrivere> pianificaQuotaExtra({
+  required String tab,
+  required List<Riga> valori,
+  required String quota,
+  required double importo,
+  required List<String> lupetti,
+}) {
+  final t = _apriQuote(tab, valori);
+  for (final r in t.rows) {
+    if (_kq(cellText(cellaAt(r, t.cQ)) ?? '') == _kq(quota)) throw QuotaEsistenteException(quota);
+  }
+  final q = SheetsClient.quotaTab(tab);
+  final celle = <CellaDaScrivere>[..._intestazioniQuote(tab, t)];
+  var i = t.prossima;
+  for (final l in lupetti) {
+    final riga = t.rigaA1(i++);
+    celle
+      ..add(CellaDaScrivere('$q!${colLetter(t.cQ)}$riga', quota))
+      ..add(CellaDaScrivere('$q!${colLetter(t.cI)}$riga', importo))
+      ..add(CellaDaScrivere('$q!${colLetter(t.cL)}$riga', l));
+  }
+  return celle;
+}
+
+/// Parte PURA: segna una quota extra pagata ([data]) o non pagata (null).
+/// [attesaPagata] = stato che l'app aveva visto; se diverso → conflitto.
+List<CellaDaScrivere> pianificaPagamentoExtra({
+  required String tab,
+  required List<Riga> valori,
+  required String quota,
+  required String lupetto,
+  required DateTime? data,
+  required bool attesaPagata,
+  bool forza = false,
+}) {
+  final t = _apriQuote(tab, valori);
+  for (var i = 0; i < t.rows.length; i++) {
+    final r = t.rows[i];
+    if (_kq(cellText(cellaAt(r, t.cQ)) ?? '') != _kq(quota)) continue;
+    if (normalizeName(cellText(cellaAt(r, t.cL)) ?? '') != normalizeName(lupetto)) continue;
+    final pagataOra = cellText(cellaAt(r, t.cP)) != null;
+    if (!forza && pagataOra != attesaPagata) {
+      throw ConflittoException([
+        Conflitto(
+          '$quota – $lupetto',
+          pagataOra ? 'già pagata' : 'non pagata',
+          attesaPagata ? 'già pagata' : 'non pagata',
+          data == null ? 'non pagata' : 'pagata',
+        ),
+      ]);
+    }
+    return [
+      CellaDaScrivere(
+        '${SheetsClient.quotaTab(tab)}!${colLetter(t.cP)}${t.rigaA1(i)}',
+        data == null
+            ? ''
+            : '${data.day.toString().padLeft(2, '0')}/${data.month.toString().padLeft(2, '0')}/${data.year}',
+      ),
+    ];
+  }
+  throw LupettoNonTrovatoException(tab);
+}
+
+/// Parte PURA: numeri di riga A1 delle righe di una quota extra (per eliminarla).
+/// Lancia [QuotaConPagamentiException] se qualcuno ha già pagato.
+List<int> pianificaEliminazioneQuota({required String tab, required List<Riga> valori, required String quota}) {
+  final t = _apriQuote(tab, valori);
+  final out = <int>[];
+  for (var i = 0; i < t.rows.length; i++) {
+    final r = t.rows[i];
+    if (_kq(cellText(cellaAt(r, t.cQ)) ?? '') != _kq(quota) || cellText(cellaAt(r, t.cL)) == null) continue;
+    if (cellText(cellaAt(r, t.cP)) != null) throw QuotaConPagamentiException();
+    out.add(t.rigaA1(i));
+  }
+  if (out.isEmpty) throw LupettoNonTrovatoException(tab);
+  return out;
+}
+
 /// Interfaccia usata dalla UI (sostituibile nei test).
 abstract class ScritturaService {
   Future<void> scriviCampi({
@@ -462,6 +616,24 @@ abstract class ScritturaService {
   /// Elimina le righe di un lupetto dai tab in cui compare. [nomiPerTab] = tab → nome
   /// con cui il lupetto compare in quel tab. Il Bilancio non viene toccato.
   Future<EsitoEliminazione> eliminaLupetto(Map<String, String> nomiPerTab);
+
+  /// Imposta l'importo di una quota fissa ("Censimento", "Quota SanFra", "Quota VdB").
+  Future<void> impostaImportoQuota(String quota, double importo);
+
+  /// Crea una quota extra (uscita, gita...) per i lupetti indicati.
+  Future<void> creaQuotaExtra(String nome, double importo, List<String> lupetti);
+
+  /// Segna una quota extra pagata (data) o non pagata (null) per un lupetto.
+  Future<void> segnaQuotaExtra({
+    required String quota,
+    required String lupetto,
+    required DateTime? data,
+    required bool attesaPagata,
+    bool forza = false,
+  });
+
+  /// Elimina una quota extra (solo se nessuno ha ancora pagato).
+  Future<void> eliminaQuotaExtra(String quota);
 }
 
 typedef ControlloOnline = Future<bool> Function();
@@ -493,188 +665,237 @@ class SheetsWriteService implements ScritturaService {
     required String nomeNelTab,
     required List<Campo> campi,
     bool forza = false,
-  }) =>
-      _rete(() async {
-        // 1) rilettura fresca del tab, 2) ricerca riga per nome, 3) conflitti.
-        final valori = await client.leggiTab(tab);
-        final piano = pianificaCampi(
-          tab: tab,
-          valori: valori,
-          nomeNelTab: nomeNelTab,
-          campi: campi,
-          forza: forza,
-        );
-        if (piano.conflitti.isNotEmpty) throw ConflittoException(piano.conflitti);
-        // 4) scrittura delle sole celle modificate, in un'unica chiamata.
-        await client.scriviCelle([for (final c in piano.celle) (c.range, c.valore)]);
-      });
+  }) => _rete(() async {
+    // 1) rilettura fresca del tab, 2) ricerca riga per nome, 3) conflitti.
+    final valori = await client.leggiTab(tab);
+    final piano = pianificaCampi(tab: tab, valori: valori, nomeNelTab: nomeNelTab, campi: campi, forza: forza);
+    if (piano.conflitti.isNotEmpty) throw ConflittoException(piano.conflitti);
+    // 4) scrittura delle sole celle modificate, in un'unica chiamata.
+    await client.scriviCelle([for (final c in piano.celle) (c.range, c.valore)]);
+  });
 
   @override
   Future<String?> aggiungiMovimento(Movimento m) => _rete(() async {
-        final tab = _p.tabBilancio;
-        final piano = pianificaMovimento(await client.leggiTab(tab), serveRimborso: m.daRimborsare);
-        var riga = piano.rigaA1;
+    final tab = _p.tabBilancio;
+    final piano = pianificaMovimento(await client.leggiTab(tab), serveRimborso: m.daRimborsare);
+    var riga = piano.rigaA1;
 
-        if (piano.serveInserimento) {
-          final id = await client.sheetId(tab);
-          await client.inserisciRiga(id, piano.indiceInserimento0);
-        } else {
-          // Rilettura mirata della riga di destinazione subito prima di scrivere:
-          // se nel frattempo un altro capo l'ha riempita, ci si ferma.
-          final fresca = await client.leggiRange(
-            '${SheetsClient.quotaTab(tab)}!A$riga:${colLetter(piano.colonne.values.reduce((a, b) => a > b ? a : b))}$riga',
-          );
-          if (fresca != null && fresca.any((c) => !_vuota(c))) {
-            throw ConflittoException([
-              Conflitto('Riga $riga del Bilancio', 'occupata da un altro capo', null, m.descrizione),
-            ]);
-          }
-        }
+    if (piano.serveInserimento) {
+      final id = await client.sheetId(tab);
+      await client.inserisciRiga(id, piano.indiceInserimento0);
+    } else {
+      // Rilettura mirata della riga di destinazione subito prima di scrivere:
+      // se nel frattempo un altro capo l'ha riempita, ci si ferma.
+      final fresca = await client.leggiRange(
+        '${SheetsClient.quotaTab(tab)}!A$riga:${colLetter(piano.colonne.values.reduce((a, b) => a > b ? a : b))}$riga',
+      );
+      if (fresca != null && fresca.any((c) => !_vuota(c))) {
+        throw ConflittoException([
+          Conflitto('Riga $riga del Bilancio', 'occupata da un altro capo', null, m.descrizione),
+        ]);
+      }
+    }
 
-        final c = piano.colonne;
-        String a1(String chiave) => '${SheetsClient.quotaTab(tab)}!${colLetter(c[chiave]!)}$riga';
-        final celle = <(String, Object?)>[
-          // Intestazioni dei rimborsi, create solo la prima volta che servono.
-          for (final e in piano.intestazioniNuove.entries)
-            ('${SheetsClient.quotaTab(tab)}!${colLetter(e.value)}${piano.rigaIntestazioneA1}', e.key),
-          (a1('desc'), m.descrizione),
-          (a1('costo'), m.importo), // numero, mai stringa con "€"
-          if (m.categoria != null && c['cat']! >= 0) (a1('cat'), m.categoria),
-          if (m.data != null && c['data']! >= 0) (a1('data'), dateToSerial(m.data!)),
-          if (m.pagatoDa != null && c['pagato']! >= 0) (a1('pagato'), m.pagatoDa),
-          if (m.note != null && c['note']! >= 0) (a1('note'), m.note),
-          if (m.daRimborsare) (a1('rimb'), 'sì'),
-        ];
-        await client.scriviCelle(celle);
+    final c = piano.colonne;
+    String a1(String chiave) => '${SheetsClient.quotaTab(tab)}!${colLetter(c[chiave]!)}$riga';
+    final celle = <(String, Object?)>[
+      // Intestazioni dei rimborsi, create solo la prima volta che servono.
+      for (final e in piano.intestazioniNuove.entries)
+        ('${SheetsClient.quotaTab(tab)}!${colLetter(e.value)}${piano.rigaIntestazioneA1}', e.key),
+      (a1('desc'), m.descrizione),
+      (a1('costo'), m.importo), // numero, mai stringa con "€"
+      if (m.categoria != null && c['cat']! >= 0) (a1('cat'), m.categoria),
+      if (m.data != null && c['data']! >= 0) (a1('data'), dateToSerial(m.data!)),
+      if (m.pagatoDa != null && c['pagato']! >= 0) (a1('pagato'), m.pagatoDa),
+      if (m.note != null && c['note']! >= 0) (a1('note'), m.note),
+      if (m.daRimborsare) (a1('rimb'), 'sì'),
+    ];
+    await client.scriviCelle(celle);
 
-        // Controllo finale (sola lettura): il totale deve essere salito dell'importo.
-        if (piano.totaleAtteso != null && piano.rigaTotaleDopoA1 != null) {
-          final tot = await client.leggiRange(
-            '${SheetsClient.quotaTab(tab)}!${colLetter(piano.colonnaCosto!)}${piano.rigaTotaleDopoA1}',
-          );
-          final nuovo = (tot != null && tot.isNotEmpty && tot.first is num) ? (tot.first as num).toDouble() : null;
-          if (nuovo == null || (nuovo - (piano.totaleAtteso! + m.importo)).abs() > 0.005) {
-            return 'Movimento aggiunto, ma il totale nel foglio non risulta aggiornato: '
-                'controlla che la formula del totale comprenda la nuova riga.';
-          }
-        }
-        return null;
-      });
+    // Controllo finale (sola lettura): il totale deve essere salito dell'importo.
+    if (piano.totaleAtteso != null && piano.rigaTotaleDopoA1 != null) {
+      final tot = await client.leggiRange(
+        '${SheetsClient.quotaTab(tab)}!${colLetter(piano.colonnaCosto!)}${piano.rigaTotaleDopoA1}',
+      );
+      final nuovo = (tot != null && tot.isNotEmpty && tot.first is num) ? (tot.first as num).toDouble() : null;
+      if (nuovo == null || (nuovo - (piano.totaleAtteso! + m.importo)).abs() > 0.005) {
+        return 'Movimento aggiunto, ma il totale nel foglio non risulta aggiornato: '
+            'controlla che la formula del totale comprenda la nuova riga.';
+      }
+    }
+    return null;
+  });
 
   @override
   Future<void> segnaRimborsati(List<Movimento> movimenti, DateTime data) => _rete(() async {
-        final tab = _p.tabBilancio;
-        final celle = pianificaRimborsi(
-          tab: tab,
-          valori: await client.leggiTab(tab),
-          movimenti: movimenti,
-          data: data,
-        );
-        await client.scriviCelle([for (final c in celle) (c.range, c.valore)]);
-      });
+    final tab = _p.tabBilancio;
+    final celle = pianificaRimborsi(tab: tab, valori: await client.leggiTab(tab), movimenti: movimenti, data: data);
+    await client.scriviCelle([for (final c in celle) (c.range, c.valore)]);
+  });
 
   @override
   Future<void> aggiungiCapo(String nome) => _rete(() async {
-        final tab = _p.tabCapi;
-        List<Riga>? valori;
-        try {
-          valori = await client.leggiTab(tab);
-        } on SheetsException catch (e) {
-          if (e.statusCode != 400) rethrow; // 400 = il tab non esiste ancora
-        }
-        if (valori == null) {
-          await client.creaTab(tab);
-          valori = const [];
-        }
-        final celle = pianificaCapo(tab: tab, valori: valori, nome: nome);
-        await client.scriviCelle([for (final c in celle) (c.range, c.valore)]);
-      });
+    final tab = _p.tabCapi;
+    List<Riga>? valori;
+    try {
+      valori = await client.leggiTab(tab);
+    } on SheetsException catch (e) {
+      if (e.statusCode != 400) rethrow; // 400 = il tab non esiste ancora
+    }
+    if (valori == null) {
+      await client.creaTab(tab);
+      valori = const [];
+    }
+    final celle = pianificaCapo(tab: tab, valori: valori, nome: nome);
+    await client.scriviCelle([for (final c in celle) (c.range, c.valore)]);
+  });
 
   @override
   Future<EsitoNuovoLupetto> aggiungiLupetto(NuovoLupetto n) => _rete(() async {
-        // (tab, campi da scrivere oltre al nome). L'ordine è anche l'ordine di scrittura.
-        final lavori = <(String, List<(String, int, Object?)>, bool)>[
-          (_p.tabDati, [('Anno', 0, '${n.annoCammino}° anno')], true),
-          (_p.tabSestiglie, [('${n.annoSestiglia}', 0, n.sestiglia)], true),
-          (_p.tabCensimenti, [
-            ('Anno', 0, '${n.annoCammino}° anno'),
-            ('sanitaria', 0, false),
-            ('Censimento', 0, 'non pagato'),
-          ], false),
-          (_p.tabPrede, [('Prede', 2, 'Non assegnata')], false),
-        ];
+    // (tab, campi da scrivere oltre al nome). L'ordine è anche l'ordine di scrittura.
+    final lavori = <(String, List<(String, int, Object?)>, bool)>[
+      (_p.tabDati, [('Anno', 0, '${n.annoCammino}° anno')], true),
+      (_p.tabSestiglie, [('${n.annoSestiglia}', 0, n.sestiglia)], true),
+      (
+        _p.tabCensimenti,
+        [('Anno', 0, '${n.annoCammino}° anno'), ('sanitaria', 0, false), ('Censimento', 0, 'non pagato')],
+        false,
+      ),
+      (_p.tabPrede, [('Prede', 2, 'Non assegnata')], false),
+    ];
 
-        // 1) Si legge e si pianifica TUTTO prima di scrivere: i problemi sui tab
-        // essenziali (nome già presente, struttura strana) fermano l'operazione senza toccare nulla.
-        final piani = <String, PianoRigaNuova>{};
-        final saltati = <String, String>{};
-        for (final (tab, campi, essenziale) in lavori) {
-          try {
-            piani[tab] = pianificaRigaNuova(
-                tab: tab, valori: await client.leggiTab(tab), nome: n.nome, campi: campi);
-          } on NomeEsistenteException {
-            if (essenziale) rethrow;
-            saltati[tab] = 'nome già presente';
-          } on StrutturaException catch (e) {
-            if (essenziale) rethrow;
-            saltati[tab] = e.dettaglio;
-          }
-        }
+    // 1) Si legge e si pianifica TUTTO prima di scrivere: i problemi sui tab
+    // essenziali (nome già presente, struttura strana) fermano l'operazione senza toccare nulla.
+    final piani = <String, PianoRigaNuova>{};
+    final saltati = <String, String>{};
+    for (final (tab, campi, essenziale) in lavori) {
+      try {
+        piani[tab] = pianificaRigaNuova(tab: tab, valori: await client.leggiTab(tab), nome: n.nome, campi: campi);
+      } on NomeEsistenteException {
+        if (essenziale) rethrow;
+        saltati[tab] = 'nome già presente';
+      } on StrutturaException catch (e) {
+        if (essenziale) rethrow;
+        saltati[tab] = e.dettaglio;
+      }
+    }
 
-        // 2) Scrittura, un tab alla volta.
-        final scritti = <String>[];
-        for (final (tab, _, _) in lavori) {
-          final piano = piani[tab];
-          if (piano == null) continue;
-          try {
-            if (piano.serveInserimento) {
-              await client.inserisciRiga(await client.sheetId(tab), piano.indiceInserimento0);
-            }
-            await client.scriviCelle([for (final c in piano.celle) (c.range, c.valore)]);
-            scritti.add(tab);
-          } catch (e) {
-            if (scritti.isEmpty) rethrow; // nulla scritto: errore normale
-            saltati[tab] = 'errore di scrittura';
-          }
+    // 2) Scrittura, un tab alla volta.
+    final scritti = <String>[];
+    for (final (tab, _, _) in lavori) {
+      final piano = piani[tab];
+      if (piano == null) continue;
+      try {
+        if (piano.serveInserimento) {
+          await client.inserisciRiga(await client.sheetId(tab), piano.indiceInserimento0);
         }
-        return EsitoNuovoLupetto(scritti, saltati);
-      }, secondi: 60);
+        await client.scriviCelle([for (final c in piano.celle) (c.range, c.valore)]);
+        scritti.add(tab);
+      } catch (e) {
+        if (scritti.isEmpty) rethrow; // nulla scritto: errore normale
+        saltati[tab] = 'errore di scrittura';
+      }
+    }
+    return EsitoNuovoLupetto(scritti, saltati);
+  }, secondi: 60);
 
   @override
   Future<EsitoEliminazione> eliminaLupetto(Map<String, String> nomiPerTab) => _rete(() async {
-        // 1) Si legge e si pianifica TUTTO: nome ambiguo o struttura strana fermano l'operazione.
-        final piani = <String, PianoEliminazione>{};
-        final saltati = <String, String>{};
-        for (final e in nomiPerTab.entries) {
-          try {
-            piani[e.key] = pianificaEliminazione(
-                tab: e.key, valori: await client.leggiTab(e.key), nomeNelTab: e.value);
-          } on LupettoNonTrovatoException {
-            saltati[e.key] = 'non presente';
-          } on NomeAmbiguoException {
-            throw NomeAmbiguoException(e.key);
-          } on StrutturaException catch (x) {
-            saltati[e.key] = x.dettaglio;
-          }
-        }
-        if (piani.isEmpty) throw LupettoNonTrovatoException(nomiPerTab.keys.first);
+    // 1) Si legge e si pianifica TUTTO: nome ambiguo o struttura strana fermano l'operazione.
+    final piani = <String, PianoEliminazione>{};
+    final saltati = <String, String>{};
+    for (final e in nomiPerTab.entries) {
+      try {
+        piani[e.key] = pianificaEliminazione(tab: e.key, valori: await client.leggiTab(e.key), nomeNelTab: e.value);
+      } on LupettoNonTrovatoException {
+        saltati[e.key] = 'non presente';
+      } on NomeAmbiguoException {
+        throw NomeAmbiguoException(e.key);
+      } on StrutturaException catch (x) {
+        saltati[e.key] = x.dettaglio;
+      }
+    }
+    if (piani.isEmpty) throw LupettoNonTrovatoException(nomiPerTab.keys.first);
 
-        // 2) Eliminazione, un tab alla volta. Subito prima di ogni eliminazione si
-        // rilegge la cella del nome: se la riga si è spostata (un altro capo ha
-        // inserito o tolto righe) non si tocca nulla in quel tab.
-        final eliminati = <String>[];
-        for (final e in piani.entries) {
-          final tab = e.key;
-          final nome = normalizeName(nomiPerTab[tab]!);
-          final ancora = await client.leggiRange(e.value.celleNome);
-          final letto = (ancora == null || ancora.isEmpty) ? null : cellText(ancora.first);
-          if (letto == null || normalizeName(letto) != nome) {
-            saltati[tab] = 'la riga è cambiata nel frattempo';
-            continue;
-          }
-          await client.eliminaRiga(await client.sheetId(tab), e.value.indiceRiga0);
-          eliminati.add(tab);
-        }
-        return EsitoEliminazione(eliminati, saltati);
-      }, secondi: 60);
+    // 2) Eliminazione, un tab alla volta. Subito prima di ogni eliminazione si
+    // rilegge la cella del nome: se la riga si è spostata (un altro capo ha
+    // inserito o tolto righe) non si tocca nulla in quel tab.
+    final eliminati = <String>[];
+    for (final e in piani.entries) {
+      final tab = e.key;
+      final nome = normalizeName(nomiPerTab[tab]!);
+      final ancora = await client.leggiRange(e.value.celleNome);
+      final letto = (ancora == null || ancora.isEmpty) ? null : cellText(ancora.first);
+      if (letto == null || normalizeName(letto) != nome) {
+        saltati[tab] = 'la riga è cambiata nel frattempo';
+        continue;
+      }
+      await client.eliminaRiga(await client.sheetId(tab), e.value.indiceRiga0);
+      eliminati.add(tab);
+    }
+    return EsitoEliminazione(eliminati, saltati);
+  }, secondi: 60);
+
+  /// Legge il tab "Quote"; se non esiste lo crea (vuoto).
+  Future<List<Riga>> _leggiQuote() async {
+    try {
+      return await client.leggiTab(_p.tabQuote);
+    } on SheetsException catch (e) {
+      if (e.statusCode != 400) rethrow; // 400 = il tab non esiste ancora
+    }
+    await client.creaTab(_p.tabQuote);
+    return const [];
+  }
+
+  @override
+  Future<void> impostaImportoQuota(String quota, double importo) => _rete(() async {
+    final celle = pianificaImportoQuota(tab: _p.tabQuote, valori: await _leggiQuote(), quota: quota, importo: importo);
+    await client.scriviCelle([for (final c in celle) (c.range, c.valore)]);
+  });
+
+  @override
+  Future<void> creaQuotaExtra(String nome, double importo, List<String> lupetti) => _rete(() async {
+    final celle = pianificaQuotaExtra(
+      tab: _p.tabQuote,
+      valori: await _leggiQuote(),
+      quota: nome,
+      importo: importo,
+      lupetti: lupetti,
+    );
+    await client.scriviCelle([for (final c in celle) (c.range, c.valore)]);
+  }, secondi: 60);
+
+  @override
+  Future<void> segnaQuotaExtra({
+    required String quota,
+    required String lupetto,
+    required DateTime? data,
+    required bool attesaPagata,
+    bool forza = false,
+  }) => _rete(() async {
+    final celle = pianificaPagamentoExtra(
+      tab: _p.tabQuote,
+      valori: await client.leggiTab(_p.tabQuote),
+      quota: quota,
+      lupetto: lupetto,
+      data: data,
+      attesaPagata: attesaPagata,
+      forza: forza,
+    );
+    await client.scriviCelle([for (final c in celle) (c.range, c.valore)]);
+  });
+
+  @override
+  Future<void> eliminaQuotaExtra(String quota) => _rete(() async {
+    final righe = pianificaEliminazioneQuota(
+      tab: _p.tabQuote,
+      valori: await client.leggiTab(_p.tabQuote),
+      quota: quota,
+    );
+    final id = await client.sheetId(_p.tabQuote);
+    // Dal basso verso l'alto: gli indici delle righe sopra non cambiano.
+    for (final r in righe.reversed) {
+      await client.eliminaRiga(id, r - 1);
+    }
+  }, secondi: 60);
 }

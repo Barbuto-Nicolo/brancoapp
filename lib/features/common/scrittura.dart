@@ -31,6 +31,10 @@ String messaggioErrore(Object e) {
   if (e is NomeEsistenteException) {
     return 'Nel tab "${e.tab}" c\'è già un lupetto con questo nome. Controlla di non averlo già inserito.';
   }
+  if (e is QuotaEsistenteException) return 'Esiste già una quota chiamata "${e.nome}".';
+  if (e is QuotaConPagamentiException) {
+    return 'Qualcuno ha già pagato questa quota: prima annulla i pagamenti, poi potrai eliminarla.';
+  }
   if (e is CapoGiaPresenteException) return '${e.nome} è già nell\'elenco dei capi.';
   if (e is StrutturaException) return 'Il foglio ha una struttura diversa dal previsto: ${e.dettaglio}';
   if (e is SheetsException) return e.message;
@@ -104,16 +108,20 @@ Future<_Scelta?> _dialogoConflitto(BuildContext context, List<Conflitto> conflit
     builder: (ctx) => AlertDialog(
       title: const Text('Un altro capo ha modificato il foglio'),
       content: SingleChildScrollView(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          for (final c in conflitti) ...[
-            Text(c.etichetta, style: Theme.of(ctx).textTheme.titleSmall),
-            Text('Nel foglio ora: ${_mostra(c.attuale)}'),
-            Text('Tu avevi visto: ${_mostra(c.atteso)}'),
-            Text('Tuo valore: ${c.nuovo is DateTime ? dataIt(c.nuovo as DateTime) : _mostra(c.nuovo)}'),
-            const SizedBox(height: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final c in conflitti) ...[
+              Text(c.etichetta, style: Theme.of(ctx).textTheme.titleSmall),
+              Text('Nel foglio ora: ${_mostra(c.attuale)}'),
+              Text('Tu avevi visto: ${_mostra(c.atteso)}'),
+              Text('Tuo valore: ${c.nuovo is DateTime ? dataIt(c.nuovo as DateTime) : _mostra(c.nuovo)}'),
+              const SizedBox(height: 12),
+            ],
+            const Text('Quale valore vuoi tenere?'),
           ],
-          const Text('Quale valore vuoi tenere?'),
-        ]),
+        ),
       ),
       actions: [
         TextButton(
@@ -136,16 +144,10 @@ Future<bool> scriviCampiLupetto(
   required String tab,
   required String nomeNelTab,
   required List<Campo> campi,
-}) =>
-    eseguiModifica(context, ref, (forza) async {
-      await ref.read(scritturaProvider).scriviCampi(
-            tab: tab,
-            nomeNelTab: nomeNelTab,
-            campi: campi,
-            forza: forza,
-          );
-      return null;
-    });
+}) => eseguiModifica(context, ref, (forza) async {
+  await ref.read(scritturaProvider).scriviCampi(tab: tab, nomeNelTab: nomeNelTab, campi: campi, forza: forza);
+  return null;
+});
 
 /// Chiede una data (gg/mm/aaaa, precompilata con [iniziale]). null se annullato.
 Future<DateTime?> chiediData(BuildContext context, String titolo, DateTime iniziale) {
@@ -194,4 +196,53 @@ Future<bool> chiediConferma(BuildContext context, String titolo, String testo) a
     ),
   );
   return r ?? false;
+}
+
+/// Chiede un importo in euro. null = annullato; ''= "salta" (solo se [consentiSalta]).
+Future<String?> chiediImporto(
+  BuildContext context,
+  String titolo,
+  String testo, {
+  bool consentiSalta = false,
+  double? iniziale,
+}) {
+  final ctrl = TextEditingController(text: iniziale == null ? '' : iniziale.toString().replaceAll('.', ','));
+  String? errore;
+  return showDialog<String>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) => AlertDialog(
+        title: Text(titolo),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(testo),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(labelText: 'Importo in euro (es. 25,00)', suffixText: '€', errorText: errore),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annulla')),
+          if (consentiSalta) TextButton(onPressed: () => Navigator.pop(ctx, ''), child: const Text('Non registrare')),
+          FilledButton(
+            onPressed: () {
+              final v = cellNumber(ctrl.text.trim());
+              if (v == null || v <= 0) {
+                setState(() => errore = 'Importo non valido');
+              } else {
+                Navigator.pop(ctx, ctrl.text.trim());
+              }
+            },
+            child: const Text('Conferma'),
+          ),
+        ],
+      ),
+    ),
+  );
 }

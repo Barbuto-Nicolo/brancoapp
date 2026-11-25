@@ -15,29 +15,32 @@ final profiloProvider = Provider<SheetProfile>((_) => AppConfig.attivo);
 final authServiceProvider = Provider<AuthService>((_) => creaAuthService());
 final cacheStoreProvider = Provider<CacheStore>((_) => CacheStore());
 
-final repositoryProvider = Provider<BrancoRepository>((ref) => SheetsBrancoRepository(
-      profilo: ref.watch(profiloProvider),
-      auth: ref.watch(authServiceProvider),
-      cache: ref.watch(cacheStoreProvider),
-    ));
+final repositoryProvider = Provider<BrancoRepository>(
+  (ref) => SheetsBrancoRepository(
+    profilo: ref.watch(profiloProvider),
+    auth: ref.watch(authServiceProvider),
+    cache: ref.watch(cacheStoreProvider),
+  ),
+);
 
 /// true se c'è una connessione. Le modifiche sono permesse solo online.
-final controlloOnlineProvider = Provider<ControlloOnline>((_) => () async {
-      try {
-        final r = await Connectivity().checkConnectivity();
-        return r.any((c) => c != ConnectivityResult.none);
-      } catch (_) {
-        return true; // nel dubbio si prova: gli errori di rete sono comunque gestiti
-      }
-    });
+final controlloOnlineProvider = Provider<ControlloOnline>(
+  (_) => () async {
+    try {
+      final r = await Connectivity().checkConnectivity();
+      return r.any((c) => c != ConnectivityResult.none);
+    } catch (_) {
+      return true; // nel dubbio si prova: gli errori di rete sono comunque gestiti
+    }
+  },
+);
 
-final scritturaProvider = Provider<ScritturaService>((ref) => SheetsWriteService(
-      client: SheetsClient(
-        profilo: ref.watch(profiloProvider),
-        token: ref.watch(authServiceProvider).token,
-      ),
-      online: ref.watch(controlloOnlineProvider),
-    ));
+final scritturaProvider = Provider<ScritturaService>(
+  (ref) => SheetsWriteService(
+    client: SheetsClient(profilo: ref.watch(profiloProvider), token: ref.watch(authServiceProvider).token),
+    online: ref.watch(controlloOnlineProvider),
+  ),
+);
 
 /// Stato letto dalle schermate: dati + unione per nome + info su freschezza.
 class DatiState {
@@ -52,13 +55,13 @@ class DatiState {
   });
 
   factory DatiState.da(CaricamentoDati c, {String? avviso, bool richiedeLogin = false}) => DatiState(
-        data: c.data,
-        unione: unisciPerNome(c.data),
-        aggiornatoAl: c.aggiornatoAl,
-        daCache: c.daCache,
-        avviso: avviso,
-        avvisoRichiedeLogin: richiedeLogin,
-      );
+    data: c.data,
+    unione: unisciPerNome(c.data),
+    aggiornatoAl: c.aggiornatoAl,
+    daCache: c.daCache,
+    avviso: avviso,
+    avvisoRichiedeLogin: richiedeLogin,
+  );
 
   final BrancoData data;
   final UnioneRisultato unione;
@@ -73,14 +76,14 @@ class DatiState {
   List<Lupetto> get lupetti => unione.lupetti;
 
   DatiState conAvviso(String? avviso, {bool richiedeLogin = false, bool offline = false}) => DatiState(
-        data: data,
-        unione: unione,
-        aggiornatoAl: aggiornatoAl,
-        daCache: daCache,
-        avviso: avviso,
-        avvisoRichiedeLogin: richiedeLogin,
-        offline: offline,
-      );
+    data: data,
+    unione: unione,
+    aggiornatoAl: aggiornatoAl,
+    daCache: daCache,
+    avviso: avviso,
+    avvisoRichiedeLogin: richiedeLogin,
+    offline: offline,
+  );
 }
 
 final datiProvider = AsyncNotifierProvider<DatiController, DatiState>(DatiController.new);
@@ -133,14 +136,18 @@ class DatiController extends AsyncNotifier<DatiState> {
     } on RetePersaException {
       final prima = state.value;
       if (prima != null) {
-        state = AsyncData(prima.conAvviso('Sei offline: stai vedendo i dati dell\'ultimo aggiornamento.',
-            offline: true));
+        state = AsyncData(
+          prima.conAvviso('Sei offline: stai vedendo i dati dell\'ultimo aggiornamento.', offline: true),
+        );
       } else {
         state = AsyncError(RetePersaException(), StackTrace.current);
       }
     } on SheetsException catch (e) {
       final prima = state.value;
-      if (prima != null) {
+      if (e.accessoNegato) {
+        // Nessun accesso al foglio = nessun dato visibile nell'app.
+        state = AsyncError(e, StackTrace.current);
+      } else if (prima != null) {
         state = AsyncData(prima.conAvviso(e.message));
       } else {
         state = AsyncError(e, StackTrace.current);
@@ -162,9 +169,7 @@ class DatiController extends AsyncNotifier<DatiState> {
   }
 }
 
-final lupettiProvider = Provider<List<Lupetto>>(
-  (ref) => ref.watch(datiProvider).value?.lupetti ?? const [],
-);
+final lupettiProvider = Provider<List<Lupetto>>((ref) => ref.watch(datiProvider).value?.lupetti ?? const []);
 
 /// Spese anticipate dai capi e non ancora rimborsate (per il promemoria).
 final rimborsiPendentiProvider = Provider<RiepilogoBilancio>(

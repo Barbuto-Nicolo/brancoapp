@@ -26,6 +26,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _errore = null;
     });
     try {
+      // Un nuovo accesso può essere di un altro account: via i dati salvati prima.
+      await ref.read(cacheStoreProvider).cancella(ref.read(profiloProvider).nome);
       await ref.read(authServiceProvider).accedi();
       ref.invalidate(datiProvider);
     } catch (e) {
@@ -83,20 +85,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     onPressed: _inCorso ? null : _accedi,
                     icon: _inCorso
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.login),
                     label: const Text('Accedi con Google'),
                   ),
                   const SizedBox(height: 8),
                   TextButton(
-                    onPressed: () => launchUrl(
-                      Uri.parse(AppConfig.urlPrivacy),
-                      mode: LaunchMode.externalApplication,
-                    ),
+                    onPressed: () => launchUrl(Uri.parse(AppConfig.urlPrivacy), mode: LaunchMode.externalApplication),
                     child: const Text('Informativa sulla privacy'),
                   ),
                   if (_errore != null) ...[
@@ -104,9 +99,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     Text(
                       _errore!,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
+                      style: TextStyle(color: Theme.of(context).colorScheme.error),
                     ),
                   ],
                 ],

@@ -19,12 +19,12 @@ import 'fixtures/fixtures.dart';
 final _profilo = AppConfig.profili['copia']!;
 
 Map<String, List<List<Object?>>> _tab() => {
-      _profilo.tabDati: fxDati,
-      _profilo.tabCensimenti: fxCensimenti,
-      _profilo.tabPrede: fxPrede,
-      _profilo.tabSestiglie: fxSestiglie,
-      _profilo.tabBilancio: fxBilancio,
-    };
+  _profilo.tabDati: fxDati,
+  _profilo.tabCensimenti: fxCensimenti,
+  _profilo.tabPrede: fxPrede,
+  _profilo.tabSestiglie: fxSestiglie,
+  _profilo.tabBilancio: fxBilancio,
+};
 
 CaricamentoDati _caricamento({bool daCache = false}) =>
     CaricamentoDati(BrancoData.daTab(_profilo, _tab()), DateTime(2026, 11, 24, 10, 30), daCache: daCache);
@@ -55,11 +55,13 @@ Future<void> _avvia(WidgetTester t, BrancoRepository repo) async {
   t.view.physicalSize = const Size(800, 2000); // schermo alto: niente righe fuori vista
   t.view.devicePixelRatio = 1.0;
   addTearDown(t.view.reset);
-  await t.pumpWidget(ProviderScope(
-    retry: (_, _) => null,
-    overrides: [repositoryProvider.overrideWithValue(repo)],
-    child: const LupettiApp(),
-  ));
+  await t.pumpWidget(
+    ProviderScope(
+      retry: (_, _) => null,
+      overrides: [repositoryProvider.overrideWithValue(repo)],
+      child: const LupettiApp(),
+    ),
+  );
   await t.pumpAndSettle();
 }
 
@@ -90,8 +92,7 @@ void main() {
       expect(daSistemare(lupetti, VoceQuota.sanFra).map((l) => l.nome), ['Giulia Bianchi']);
       expect(daSistemare(lupetti, VoceQuota.vdb), isEmpty);
       // "sanitaria" FALSE: chi ha una riga in Censimenti e non ha consegnato (anche il segnaposto)
-      expect(daSistemare(lupetti, VoceQuota.sanitaria).map((l) => l.nome),
-          containsAll(['Mario Rossi', 'Elena Verdi']));
+      expect(daSistemare(lupetti, VoceQuota.sanitaria).map((l) => l.nome), containsAll(['Mario Rossi', 'Elena Verdi']));
     });
 
     test('contatti: numeri per WhatsApp', () {

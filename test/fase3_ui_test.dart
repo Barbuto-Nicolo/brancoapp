@@ -18,21 +18,36 @@ class _Repo implements BrancoRepository {
   Future<CaricamentoDati?> daCache() async => null;
   @override
   Future<CaricamentoDati> daRete() async => CaricamentoDati(
-        BrancoData.daTab(_p, {
-          _p.tabDati: fxDati,
-          _p.tabCensimenti: fxCensimenti,
-          _p.tabPrede: fxPrede,
-          _p.tabSestiglie: fxSestiglie,
-          _p.tabBilancio: fxBilancio,
-        }),
-        DateTime(2026, 11, 24),
-        daCache: false,
-      );
+    BrancoData.daTab(_p, {
+      _p.tabDati: fxDati,
+      _p.tabCensimenti: fxCensimenti,
+      _p.tabPrede: fxPrede,
+      _p.tabSestiglie: fxSestiglie,
+      _p.tabBilancio: fxBilancio,
+    }),
+    DateTime(2026, 11, 24),
+    daCache: false,
+  );
   @override
   Future<void> esci() async {}
 }
 
 class _Scrittura implements ScritturaService {
+  @override
+  Future<void> impostaImportoQuota(String quota, double importo) async {}
+  @override
+  Future<void> creaQuotaExtra(String nome, double importo, List<String> lupetti) async {}
+  @override
+  Future<void> segnaQuotaExtra({
+    required String quota,
+    required String lupetto,
+    required DateTime? data,
+    required bool attesaPagata,
+    bool forza = false,
+  }) async {}
+  @override
+  Future<void> eliminaQuotaExtra(String quota) async {}
+
   _Scrittura({this.conflitto = false});
   final bool conflitto;
   final chiamate = <({String nome, List<Campo> campi, bool forza})>[];
@@ -71,15 +86,17 @@ Future<void> _avvia(WidgetTester t, _Scrittura w, {bool online = true}) async {
   t.view.physicalSize = const Size(800, 2000);
   t.view.devicePixelRatio = 1.0;
   addTearDown(t.view.reset);
-  await t.pumpWidget(ProviderScope(
-    retry: (_, _) => null,
-    overrides: [
-      repositoryProvider.overrideWithValue(_Repo()),
-      scritturaProvider.overrideWithValue(w),
-      controlloOnlineProvider.overrideWithValue(() async => online),
-    ],
-    child: const LupettiApp(),
-  ));
+  await t.pumpWidget(
+    ProviderScope(
+      retry: (_, _) => null,
+      overrides: [
+        repositoryProvider.overrideWithValue(_Repo()),
+        scritturaProvider.overrideWithValue(w),
+        controlloOnlineProvider.overrideWithValue(() async => online),
+      ],
+      child: const LupettiApp(),
+    ),
+  );
   await t.pumpAndSettle();
   await t.tap(find.text('Quote'));
   await t.pumpAndSettle();
@@ -93,6 +110,9 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('Data (gg/mm/aaaa)'), findsOneWidget);
     await t.tap(find.text('Conferma'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('quanto costa'), findsOneWidget); // importo ancora ignoto
+    await t.tap(find.text('Non registrare'));
     await t.pumpAndSettle();
     expect(w.chiamate.length, 1);
     expect(w.chiamate.single.campi.map((c) => c.header), ['Censimento', 'Data']);
@@ -109,6 +129,9 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('Conferma'));
     await t.pumpAndSettle();
+    expect(find.textContaining('quanto costa'), findsOneWidget); // importo ancora ignoto
+    await t.tap(find.text('Non registrare'));
+    await t.pumpAndSettle();
     expect(find.text('Un altro capo ha modificato il foglio'), findsOneWidget);
     expect(find.textContaining('Nel foglio ora: pagato'), findsOneWidget);
     expect(find.textContaining('Tu avevi visto: non pagato'), findsOneWidget);
@@ -123,6 +146,9 @@ void main() {
     await t.tap(find.widgetWithText(FilledButton, 'Pagato').first);
     await t.pumpAndSettle();
     await t.tap(find.text('Conferma'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('quanto costa'), findsOneWidget); // importo ancora ignoto
+    await t.tap(find.text('Non registrare'));
     await t.pumpAndSettle();
     await t.tap(find.text('Tieni quello del foglio'));
     await t.pumpAndSettle();

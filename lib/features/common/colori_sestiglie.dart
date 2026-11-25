@@ -11,7 +11,7 @@ Color coloreSestiglia(String nome) {
     'ross': Color(0xFFC4452D),
     'fulv': Color(0xFF8A2B3C), // rosso vinaccio
     'brun': Color(0xFF7A4B2A),
-    'pezzat': Color(0xFFB59B7A),
+    'pezzat': Color(0xFFF6F3EA), // bianco, con le macchie nere (vedi haMacchie)
     'tigrat': Color(0xFFD9A93B),
     'azzurr': Color(0xFF4A93D0),
     'blu': Color(0xFF2F6FA3),
@@ -34,6 +34,9 @@ Color coloreSestiglia(String nome) {
   ];
   return tavolozza[n.codeUnits.fold<int>(0, (a, b) => a + b) % tavolozza.length];
 }
+
+/// I pezzati sono bianchi con macchie nere: il colore da solo non basta.
+bool haMacchie(String nome) => nome.toLowerCase().contains('pezzat');
 
 /// Testo leggibile sopra [sfondo].
 Color testoSu(Color sfondo) =>
